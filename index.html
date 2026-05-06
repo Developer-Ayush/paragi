@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paragi — A Continuous Learning Graph Intelligence Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@300;400;500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf9f7;
+    --text: #1a1a1a;
+    --muted: #555;
+    --accent: #c0392b;
+    --accent2: #2c3e50;
+    --border: #d4cfc8;
+    --code-bg: #f0ede8;
+    --table-head: #2c3e50;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Crimson Pro', Georgia, serif; background: var(--bg); color: var(--text); font-size: 18px; line-height: 1.75; }
+  .page { max-width: 860px; margin: 0 auto; padding: 60px 40px 120px; }
+  .paper-header { border-bottom: 2px solid var(--text); padding-bottom: 32px; margin-bottom: 48px; }
+  .paper-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); margin-bottom: 16px; }
+  h1 { font-family: 'Libre Baskerville', serif; font-size: 2.4rem; font-weight: 700; line-height: 1.2; margin-bottom: 12px; }
+  .subtitle { font-size: 1.1rem; font-style: italic; color: var(--muted); margin-bottom: 20px; }
+  .meta { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; }
+  .meta span::before { content: '· '; }
+  .meta span:first-child::before { content: ''; }
+  .abstract { background: var(--code-bg); border-left: 3px solid var(--accent2); padding: 24px 28px; margin-bottom: 48px; font-size: 0.95rem; color: var(--muted); }
+  .abstract strong { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent2); display: block; margin-bottom: 10px; }
+  .toc { margin-bottom: 60px; padding: 24px 28px; border: 1px solid var(--border); }
+  .toc h3 { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  .toc ol { column-count: 2; column-gap: 40px; font-size: 0.88rem; padding-left: 20px; }
+  .toc li { margin-bottom: 5px; break-inside: avoid; }
+  .toc a { color: var(--accent2); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; color: var(--accent); }
+  section { margin-bottom: 56px; }
+  h2 { font-family: 'Libre Baskerville', serif; font-size: 1.5rem; font-weight: 700; margin-bottom: 20px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h2 .sn { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent); margin-right: 8px; }
+  h3 { font-family: 'Libre Baskerville', serif; font-size: 1.1rem; font-weight: 700; margin: 28px 0 12px; color: var(--accent2); }
+  p { margin-bottom: 14px; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); padding: 20px 24px; margin: 20px 0; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; color: var(--accent2); }
+  code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: var(--code-bg); padding: 1px 5px; border-radius: 2px; }
+  .tw { overflow-x: auto; margin: 20px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th { background: var(--table-head); color: white; padding: 10px 14px; text-align: left; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--code-bg); }
+  .box { border: 1px solid var(--border); border-left: 3px solid var(--accent2); background: white; padding: 18px 22px; margin: 20px 0; font-size: 0.95rem; }
+  .box strong { display: block; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent2); margin-bottom: 8px; }
+  .box.r { border-left-color: var(--accent); }
+  .box.r strong { color: var(--accent); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+  .stack { border: 1px solid var(--border); overflow: hidden; margin: 20px 0; }
+  .sr { display: flex; border-bottom: 1px solid var(--border); }
+  .sr:last-child { border-bottom: none; }
+  .sn2 { width: 40px; min-width: 40px; background: var(--table-head); color: white; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .sl { flex: 1; padding: 10px 16px; font-size: 0.9rem; display: flex; align-items: center; gap: 12px; }
+  .sl span { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); }
+  .g { background: #e8f5e9; } .p { background: #f3e5f5; } .a { background: #fff8e1; }
+  .end { border: 2px solid var(--text); padding: 28px 32px; margin-top: 48px; }
+  .end h3 { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; margin-top: 0; }
+  .footer { margin-top: 80px; padding-top: 24px; border-top: 2px solid var(--text); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); text-align: center; }
+  @media (max-width: 600px) { .page { padding: 32px 20px 80px; } h1 { font-size: 1.8rem; } .toc ol { column-count: 1; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="paper-header">
+  <div class="paper-label">Working Paper — Draft v11.10.11 · Independent Research</div>
+  <h1>Paragi: A Continuous Learning Graph Intelligence Architecture</h1>
+  <div class="subtitle">Adaptive Memory, Emergent Abstraction, Democratic Consensus Reasoning, and a User-Driven Knowledge Economy</div>
+  <div class="meta">
+    <span>2026</span><span>Independent Research</span><span>Ayush Anand</span><span>v11.10.11</span>
+  </div>
+</header>
+
+<div class="abstract">
+  <strong>Abstract</strong>
+  We present Paragi, a continuous learning intelligence architecture built on an adaptive weighted graph of concept nodes. A critical architectural distinction: nodes in Paragi are pure data points — identifiers with no intrinsic meaning. All meaning, behaviour, direction, and strength emerge entirely from edges. Each edge carries a 1024-dimensional vector split into a 700-dim semantic knowledge block and a 324-dim control block, governing what information is encoded and how activation spreads. Unlike static pretrained models that freeze after training, Paragi learns perpetually through local update rules governed by a learning rate, per-dimension decay function, and emotional modulation signal. The architecture introduces democratic consensus reasoning, emergent abstraction from hub nodes, and self-awareness via expansion nodes. A novel contribution economy rewards users with usage credits for teaching the main graph — making users co-builders of the intelligence. Conversations are stored as graph traversal paths with raw text preservation and frozen answer snapshots, enabling answer evolution visible to users over time. Intelligent memory pruning by edge strength rather than age mirrors biological memory consolidation. The storage layer uses HDF5 binary files indexed by Bloom filters for O(1) existence checks. The knowledge base bootstraps from a three-source cascade: ConceptNet, Semantic Scholar, and Wikipedia.
+</div>
+
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#s1">Introduction and Motivation</a></li>
+    <li><a href="#s2">Fundamental Architecture</a></li>
+    <li><a href="#s3">The 1024-Dimensional Edge Vector</a></li>
+    <li><a href="#s4">Storage Layer — HDF5 and Bloom Filters</a></li>
+    <li><a href="#s5">Learning and Forgetting Rates</a></li>
+    <li><a href="#s6">The Reasoning Engine</a></li>
+    <li><a href="#s7">Edge Typing and Causal Discovery</a></li>
+    <li><a href="#s8">Contradiction Resolution</a></li>
+    <li><a href="#s9">Emergent Abstraction</a></li>
+    <li><a href="#s10">Goal Representation</a></li>
+    <li><a href="#s11">Self-Awareness via Expansion Nodes</a></li>
+    <li><a href="#s12">Knowledge Bootstrap</a></li>
+    <li><a href="#s13">Full System Stack</a></li>
+    <li><a href="#s14">Honest Assessment and Open Problems</a></li>
+    <li><a href="#s15">Full Infrastructure at 10M Users</a></li>
+    <li><a href="#s16">Build Order — Step by Step</a></li>
+    <li><a href="#s17">User Experience Architecture</a></li>
+    <li><a href="#s18">Contribution Economy and Credit System</a></li>
+    <li><a href="#s19">Conversation and Memory Storage</a></li>
+    <li><a href="#s20">Interface — Node Visualization Layer</a></li>
+    <li><a href="#s21">Conclusion</a></li>
+  </ol>
+</div>
+
+<section id="s1">
+  <h2><span class="sn">1.</span> Introduction and Motivation</h2>
+  <p>The dominant paradigm in artificial intelligence today relies on large pretrained models — transformers trained once on fixed datasets, then deployed without further learning. These systems are powerful but fundamentally static. They cannot incorporate new knowledge after training without expensive retraining cycles. They do not know what they do not know. Their internal reasoning process is opaque, monolithic, and uninterpretable.</p>
+  <p>Paragi takes a different approach. Rather than training a model once and freezing it, Paragi maintains a living knowledge graph that updates continuously with every new experience. Rather than performing pattern matching over token sequences, Paragi performs explicit multi-hop inference over typed graph edges. Rather than assuming knowledge is complete, Paragi tracks its own gaps and autonomously works to fill them.</p>
+  <p>The central claim of this paper is that these three properties — continuous learning, explicit graph reasoning, and autonomous gap filling — together produce a system that is qualitatively different from existing approaches, not merely more powerful. A fourth property, the contribution economy, makes users active co-builders of the intelligence rather than passive consumers of it.</p>
+</section>
+
+<section id="s2">
+  <h2><span class="sn">2.</span> Fundamental Architecture — Nodes, Edges, and Vectors</h2>
+  <h3>2.1 Nodes are pure data points</h3>
+  <div class="box"><strong>Architectural Foundation</strong>Nodes in Paragi are not vectors. Nodes are not embeddings. A node is a pure data point — a named identifier with no intrinsic meaning, no direction, and no behaviour of its own. A node called "fire" knows nothing about fire. It is simply a point in the graph. All meaning, all behaviour, all directionality, and all strength in Paragi emerges entirely from edges.</div>
+  <pre>node("fire")      → just an ID, no meaning
+node("burn")      → just an ID, no meaning
+edge(fire → burn) → carries 1024-dim vector = ALL the meaning
+
+remove the edge → fire and burn are strangers
+add 10 edges    → fire becomes richly connected, richly meaningful</pre>
+
+  <h3>2.2 What a node contains</h3>
+  <pre>node = {
+  "id":            "bloom_hash",
+  "label":         "fire",
+  "created":       timestamp,
+  "last_accessed": timestamp,
+  "access_count":  int
+}
+// No vector. No embedding. No meaning. Just a point.</pre>
+
+  <h3>2.3 What an edge contains</h3>
+  <pre>edge = {
+  "source":           node_id,
+  "target":           node_id,
+  "type":             CAUSES | CORRELATES | IS_A | TEMPORAL | INFERRED,
+  "vector":           float32[1024],
+  "strength":         float,
+  "emotional_weight": float,
+  "recall_count":     int,
+  "stability":        float,
+  "last_activated":   timestamp
+}</pre>
+  <p>A concept's meaning in Paragi is the set of all edges connected to its node. Richer concepts have more edges. More specific concepts have fewer, stronger edges. Abstract concepts are nodes with many incoming edges from diverse sources — hub nodes that many paths pass through.</p>
+</section>
+
+<section id="s3">
+  <h2><span class="sn">3.</span> The 1024-Dimensional Edge Vector</h2>
+  <h3>3.1 The split architecture</h3>
+  <pre>1024-dim edge vector
+├── dims 0–699    KNOWLEDGE BLOCK (700-dim)  → what this edge encodes
+└── dims 700–1023 CONTROL BLOCK   (324-dim) → how activation spreads</pre>
+
+  <h3>3.2 The knowledge block — 700 dimensions</h3>
+  <p>The 700 knowledge dimensions are not vaguely semantic. Each dimension range encodes a specific, named human cognitive and decision-making factor. The boundaries are defined by architecture — not learned, not random.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Dims</th><th>Category</th><th>Factor</th><th>What it encodes</th></tr></thead>
+    <tbody>
+      <tr><td>0–29</td><td>Biological</td><td>Decision Fatigue</td><td>Path-of-least-resistance tendency; choice depletion state</td></tr>
+      <tr><td>30–69</td><td>Biological</td><td>Visceral States</td><td>Hunger, thirst, arousal — impulsivity modulation</td></tr>
+      <tr><td>70–109</td><td>Biological</td><td>Neurochemistry</td><td>Dopamine (reward-seeking), Cortisol (risk aversion)</td></tr>
+      <tr><td>110–139</td><td>Biological</td><td>Circadian Rhythm</td><td>Peak analytical window; time-of-day accuracy modulation</td></tr>
+      <tr><td>140–174</td><td>Psychological</td><td>Cognitive Biases</td><td>Loss aversion, confirmation bias, availability heuristic</td></tr>
+      <tr><td>175–209</td><td>Psychological</td><td>Emotional State</td><td>Sadness, anger, fear — mood-driven decision distortion</td></tr>
+      <tr><td>210–244</td><td>Psychological</td><td>Heuristics</td><td>Rules of thumb, snap judgements, past-memory shortcuts</td></tr>
+      <tr><td>245–279</td><td>Psychological</td><td>Self-Image</td><td>Identity-confirming choices</td></tr>
+      <tr><td>280–304</td><td>Social</td><td>Social Proof</td><td>What others are doing signals what is correct</td></tr>
+      <tr><td>305–329</td><td>Social</td><td>Authority</td><td>Deference to titles, expertise, perceived credibility</td></tr>
+      <tr><td>330–354</td><td>Social</td><td>Cultural Norms</td><td>Acceptability filters from specific cultural context</td></tr>
+      <tr><td>355–379</td><td>Social</td><td>Reciprocity</td><td>Obligation from received favour; debt-driven choice</td></tr>
+      <tr><td>380–404</td><td>Situational</td><td>Choice Architecture</td><td>Option layout effects; middle-option bias; default salience</td></tr>
+      <tr><td>405–429</td><td>Situational</td><td>Time Pressure</td><td>Urgency-driven logic shutdown; forced intuition reliance</td></tr>
+      <tr><td>430–454</td><td>Situational</td><td>Environmental Noise</td><td>Lighting, temperature, clutter — ambient distraction load</td></tr>
+      <tr><td>455–479</td><td>Situational</td><td>Defaults</td><td>Pre-selected option stickiness; inertia-driven choice</td></tr>
+      <tr><td>480–504</td><td>Intellectual</td><td>Information Load</td><td>Analysis paralysis; data overload</td></tr>
+      <tr><td>505–529</td><td>Intellectual</td><td>Framing</td><td>Win vs. loss presentation; gain/avoid framing effects</td></tr>
+      <tr><td>530–554</td><td>Intellectual</td><td>Sunk Cost</td><td>Prior investment weight; "can't stop now" distortion</td></tr>
+      <tr><td>555–579</td><td>Intellectual</td><td>Opportunity Cost</td><td>Foregone alternative weight</td></tr>
+      <tr><td>580–639</td><td>Factual</td><td>World Knowledge</td><td>Objective facts, physical laws, entity properties</td></tr>
+      <tr><td>640–669</td><td>Relational</td><td>Temporal / Causal</td><td>Before/after, cause/effect, sequence relationships</td></tr>
+      <tr><td>670–699</td><td>—</td><td>Reserved / Expansion</td><td>Available for new categories without breaking existing dims</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>3.3 The control block — 324 dimensions</h3>
+  <pre>dims 700–799   Region activation weights  // which knowledge regions activate
+dims 800–849   Expand / collapse rate     // how many dims to use
+dims 850–899   Learning rate per region   // how fast each region updates
+dims 900–949   Decay rate per region      // per-dim forgetting speed
+dims 950–999   Connection strength map    // outgoing edge weights
+dims 1000–1023 Metadata                  // timestamp, recall count, confidence</pre>
+
+  <h3>3.4 Expand and collapse — variable activation</h3>
+  <pre>Simple query: "is fire hot?"
+→ control block collapses to ~10 active dims → fast, cheap retrieval
+
+Complex query: "why does fire cause burns at a cellular level?"
+→ control block expands to 150+ dims → multi-hop traversal, deeper causal chain
+
+Same query asked 50+ times:
+→ control block learns shortcut path → collapses back to minimal dims</pre>
+  <div class="box"><strong>Efficiency insight</strong>Current LLMs activate billions of parameters for every query regardless of complexity. Paragi activates only the dims required by the control block for that specific query. Repeated queries cost less over time, not the same. The system becomes more efficient with experience.</div>
+</section>
+
+<section id="s4">
+  <h2><span class="sn">4.</span> Storage Layer — HDF5 and Bloom Filters</h2>
+  <h3>4.1 HDF5 as the graph store</h3>
+  <pre>memory.h5
+├── /nodes/{node_id}/metadata      // label, timestamps, access count
+├── /edges/{edge_id}/vector        // float32[1024]
+├── /edges/{edge_id}/metadata      // strength, type, recall_count
+├── /bloom/filter_binary
+└── /meta/version, total_nodes
+
+// 1024 × float32 = 4KB per edge. 1M edges = 4GB.</pre>
+
+  <h3>4.2 Bloom filter as the index</h3>
+  <pre>Query arrives
+↓
+Bloom filter check (RAM, microseconds)
+↓ EXISTS                  ↓ NOT EXISTS
+Load edge vector from .h5  Create new node + edge
+multi-hop traversal        add to .h5 + update bloom</pre>
+  <p>The Bloom filter has a configurable false positive rate. At 0.1% error rate it handles 10 million entries in under 15MB of RAM. A false positive causes one unnecessary disk read — acceptable. A false negative is impossible by construction.</p>
+
+  <h3>4.3 Storage cost</h3>
+  <pre>Per edge: 4KB (vector) + ~100 bytes (metadata) ≈ 4.1KB
+1 million edges  = ~4.1GB
+10 million edges = ~41GB
+Bloom filter for 10M entries at 0.1% error: ~15MB RAM</pre>
+</section>
+
+<section id="s5">
+  <h2><span class="sn">5.</span> Learning and Forgetting Rates</h2>
+  <h3>5.1 The update rule</h3>
+  <pre>Δstrength = η(S − strength) + αR − βD
+
+η = learning rate  |  S = new signal  |  R = reinforcement
+D = decay          |  α, β = modulation weights</pre>
+
+  <h3>5.2 Learning rate grows with recall</h3>
+  <pre>1st recall  → +0.10
+2nd recall  → +0.18
+5th recall  → +0.35
+10th recall → +0.60
+50th recall → near permanent</pre>
+
+  <h3>5.3 Per-dimension decay profiles</h3>
+  <pre>dims 0–139   (Biological)         decay: 0.0005–0.002 per cycle
+dims 140–279 (Psychological)      decay: 0.001–0.004 per cycle
+dims 280–379 (Social)             decay: 0.002–0.006 per cycle
+dims 380–479 (Situational)        decay: 0.004–0.009 per cycle
+dims 480–579 (Intellectual)       decay: 0.005–0.012 per cycle
+dims 580–639 (Factual / World)    decay: 0.008–0.015 per cycle
+dims 640–669 (Temporal / Causal)  decay: 0.006–0.010 per cycle
+
+// Biological dims decay slowest. Facts fade before instincts.
+// Matches Ebbinghaus curve — fast initial drop, asymptote never zero.</pre>
+
+  <h3>5.4 The floor — strength never reaches zero</h3>
+  <pre>strength(t) = floor + (initial − floor) × e^(−decay_rate × t)
+floor = 0.001  |  never reaches zero  |  always recoverable</pre>
+</section>
+
+<section id="s6">
+  <h2><span class="sn">6.</span> The Reasoning Engine</h2>
+  <h3>6.1 The problem with pure retrieval</h3>
+  <p>Simple vector similarity search is not reasoning. It is retrieval. A system that stores "fire is hot" and "hot things burn" can retrieve either fact when queried directly. But it cannot answer "does steam burn?" if that connection was never explicitly stored. Retrieval systems fail at exactly the point where intelligence begins: novel inference.</p>
+
+  <h3>6.2 Multi-hop path traversal</h3>
+  <pre>Query: does steam burn?
+
+steam → water → temperature → hot → burn         (5 hops)
+steam → vapour → energy → heat → burn            (5 hops)
+steam → high temperature → skin damage → burn    (4 hops)
+
+Multiple independent paths converge on the same conclusion.
+The system derived the answer through traversal — genuine inference, not lookup.</pre>
+
+  <h3>6.3 Path scoring</h3>
+  <pre>score(path) = mean(edge_strengths along path) × goal_relevance</pre>
+  <p>Mean is used rather than product to avoid penalising longer causal chains. A five-hop causal explanation outranks a two-hop correlation if its edge strengths are higher.</p>
+
+  <h3>6.4 Novel query fallback</h3>
+  <pre>no path found → internet search → if unavailable → LLM fallback
+↓
+parse answer into nodes + edges → add to graph
+↓
+same query next time → answered internally, no fallback</pre>
+  <div class="box"><strong>On fallback frequency</strong>Internet search is the primary fallback. LLM fallback is a last resort. As the graph matures, both become increasingly rare. At year 2, over 97% of queries are answered by internal graph traversal alone.</div>
+</section>
+
+<section id="s7">
+  <h2><span class="sn">7.</span> Edge Typing and Causal Discovery</h2>
+  <h3>7.1 Edge types</h3>
+  <pre>CAUSES      fire →[CAUSES]→ burn
+CORRELATES  fire →[CORRELATES]→ smoke
+IS_A        fire →[IS_A]→ combustion
+TEMPORAL    lightning →[TEMPORAL]→ thunder
+INFERRED    steam →[INFERRED]→ burn</pre>
+
+  <h3>7.2 Automatic causal discovery</h3>
+  <pre>multiple independent paths A → B  →  label: CAUSES
+single path A → B                 →  label: CORRELATES
+externally asserted A → B         →  label: ASSERTED
+derived through traversal         →  label: INFERRED</pre>
+  <div class="box"><strong>Key insight</strong>This mirrors the scientific method. Reproducibility across independent lines of evidence establishes causation. A single observation establishes only correlation. Paragi encodes this epistemological principle directly in its edge-typing logic.</div>
+</section>
+
+<section id="s8">
+  <h2><span class="sn">8.</span> Contradiction Resolution</h2>
+  <h3>8.1 Democratic consensus</h3>
+  <pre>paths supporting "fire burns"   = 7
+paths supporting "fire is safe" = 1
+
+verdict: "fire burns" wins → weaken minority edge, flag as uncertain
+
+confidence = supporting_paths / total_paths
+example: 7 / (7+1) = 0.875</pre>
+  <p>The minority connection is weakened but not deleted. The system never hard-deletes a contradicted belief — it deprioritises it and flags it as uncertain.</p>
+</section>
+
+<section id="s9">
+  <h2><span class="sn">9.</span> Emergent Abstraction</h2>
+  <h3>9.1 Hub nodes as abstract concepts</h3>
+  <pre>fire  → high energy → damages tissue → burn
+acid  → high energy → damages tissue → burn
+steam → high energy → damages tissue → burn
+
+// "high energy → damages tissue" receives edges from three independent sources
+// Its connectivity count grows → becomes a high-centrality hub
+// Hub nodes are abstract concepts — discovered automatically</pre>
+
+  <h3>9.2 Analogy via shared hubs</h3>
+  <pre>soldier    → war  → job
+businessman → work → job
+shared hub: "job" → structural mapping discovered automatically</pre>
+
+  <h3>9.3 Causal mechanisms via path distribution</h3>
+  <pre>heat → damages cells → denatures protein → burn
+temperature threshold → skin failure → tissue damage</pre>
+  <p>Multi-hop traversal retrieves the full mechanism, not just the correlation. Deep causal structure is encoded in path topology itself.</p>
+</section>
+
+<section id="s10">
+  <h2><span class="sn">10.</span> Goal Representation</h2>
+  <p>Goals emerge from the system's own failure signals. The implicit objective is minimising retrieval fallbacks. Every fallback is a measured cost — the discomfort of not knowing — that motivates directed learning. The system prioritises expanding knowledge adjacent to recent queries: areas of demonstrated relevance. This creates directed learning rather than undirected data accumulation.</p>
+</section>
+
+<section id="s11">
+  <h2><span class="sn">11.</span> Self-Awareness via Expansion Nodes</h2>
+  <h3>11.1 Knowing what you do not know</h3>
+  <p>When a query cannot be answered internally, the system creates an expansion node at the location of the detected gap — a node representing the system's own ignorance. This is a structural self-model encoded in graph topology.</p>
+  <pre>query fails → expansion node created at gap location
+30s idle cycle → background thread scans expansion nodes
+three-source retrieval → fill gap
+graph update → expansion node resolved
+future query → answered internally</pre>
+
+  <h3>11.2 Background thread operations</h3>
+  <p>Every 30 seconds: decay update, expansion node resolution, deduplication, semantic deduplication, democratic consensus upgrade, vector update, control dim activation spreading, compress/expand, shortcut formation, state save. No human input required.</p>
+</section>
+
+<section id="s12">
+  <h2><span class="sn">12.</span> Knowledge Bootstrap — Three-Source Cascade</h2>
+  <h3>12.1 The cold start problem</h3>
+  <p>An empty graph knows nothing and cannot process any input. Paragi solves the cold start problem through structured seeding at first run, not manual data entry.</p>
+
+  <h3>12.2 The cascade</h3>
+  <pre>Source 1: ConceptNet (primary)
+→ structured, typed, 300,000+ English relationships
+→ pre-typed as CAUSES, IS_A, CORRELATES, TEMPORAL
+→ highest confidence weight
+
+Source 2: Semantic Scholar (secondary)
+→ academic and peer-reviewed papers
+→ used when ConceptNet returns nothing
+
+Source 3: Wikipedia (tertiary)
+→ only used if both above return nothing
+→ disambiguation handled before ingestion
+
+Seed concepts: fire, heat, burn, water, cold, pain
+→ 20 relationships each → real typed knowledge from cold start</pre>
+</section>
+
+<section id="s13">
+  <h2><span class="sn">13.</span> Full System Stack</h2>
+  <div class="stack">
+    <div class="sr a"><div class="sn2">8</div><div class="sl">Output generation <span>Path + edge types + confidence → template decoder / fallback</span></div></div>
+    <div class="sr a"><div class="sn2">7</div><div class="sl">Contradiction resolver <span>Democratic path consensus → confidence score</span></div></div>
+    <div class="sr a"><div class="sn2">6</div><div class="sl">Goal layer <span>Fallback signal → directed learning priority</span></div></div>
+    <div class="sr p"><div class="sn2">5</div><div class="sl">Reasoning engine <span>Multi-hop traversal → causal chain / fallback if no path</span></div></div>
+    <div class="sr p"><div class="sn2">4</div><div class="sl">Edge typing <span>Path consensus → CAUSES / CORRELATES / IS_A / INFERRED</span></div></div>
+    <div class="sr g"><div class="sn2">3</div><div class="sl">Memory graph <span>Nodes (pure points) + edges (1024-dim vectors, decay, emotional weight)</span></div></div>
+    <div class="sr g"><div class="sn2">2</div><div class="sl">Storage layer <span>HDF5 binary store + Bloom filter RAM index</span></div></div>
+    <div class="sr g"><div class="sn2">1</div><div class="sl">Input encoding <span>fastembed (primary) + fallback → node lookup / creation decision</span></div></div>
+  </div>
+  <p style="font-size:0.85rem;color:var(--muted);margin-top:8px;">Green = memory/storage · Purple = reasoning · Amber = meta/goal</p>
+</section>
+
+<section id="s14">
+  <h2><span class="sn">14.</span> Honest Assessment and Open Problems</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Component</th><th>Status</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Node/edge architecture</td><td>Complete</td><td>Nodes are pure points. All meaning in edges.</td></tr>
+      <tr><td>1024-dim edge vector (700/324 split)</td><td>Complete</td><td>20 named cognitive factors across 5 categories + factual/causal dims + 324-dim control block</td></tr>
+      <tr><td>HDF5 + Bloom filter storage</td><td>Complete</td><td>O(1) existence check, 4KB/edge</td></tr>
+      <tr><td>Per-dimension decay profiles</td><td>Complete</td><td>Emotion dims outlast semantic dims</td></tr>
+      <tr><td>Expand/collapse activation</td><td>Complete</td><td>Control block governs active dims per query</td></tr>
+      <tr><td>Multi-hop path reasoning</td><td>Complete</td><td>Up to 7 hops, mean edge scoring</td></tr>
+      <tr><td>Edge typing + causal discovery</td><td>Complete</td><td>CAUSES / CORRELATES / IS_A / TEMPORAL / INFERRED</td></tr>
+      <tr><td>Contradiction resolution</td><td>Complete</td><td>Democratic consensus, confidence scoring</td></tr>
+      <tr><td>Emergent abstraction + analogy</td><td>Complete</td><td>Hub nodes + shared hub topology</td></tr>
+      <tr><td>Causal mechanisms</td><td>Complete</td><td>Distributed across path hops</td></tr>
+      <tr><td>Goal representation</td><td>Complete</td><td>Fallback minimisation as implicit objective</td></tr>
+      <tr><td>Self-awareness + autonomous operation</td><td>Complete</td><td>Expansion nodes + 30s background thread</td></tr>
+      <tr><td>Knowledge bootstrap</td><td>Complete</td><td>ConceptNet → Semantic Scholar → Wikipedia cascade</td></tr>
+      <tr><td>Contribution economy</td><td>Complete</td><td>Credit system, two-graph model, first-contributor rule, anti-spam by architecture</td></tr>
+      <tr><td>Conversation storage as nodes</td><td>Complete</td><td>Raw text + traversal path + frozen snapshot. Latest answer rebuilt dynamically.</td></tr>
+      <tr><td>Intelligent memory pruning</td><td>Complete</td><td>Prune by edge strength and access count, not age</td></tr>
+      <tr><td>Answer evolution</td><td>Complete</td><td>Frozen snapshots + live rebuild enables before/after diff for users</td></tr>
+      <tr><td>Physical law encoding</td><td>Complete</td><td>Stored as standard edges, learned through real-world data exposure</td></tr>
+      <tr><td>Input encoder</td><td>In Development</td><td>Temporary: fastembed + fallback. No architectural change when swapped.</td></tr>
+      <tr><td>Output decoder</td><td>In Development</td><td>Temporary: template decoder + fallback. Planned alongside encoder.</td></tr>
+      <tr><td>Symbol grounding at scale</td><td>In Development</td><td>Fully solved by own encoder/decoder once built.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="s15">
+  <h2><span class="sn">15.</span> Full Infrastructure at 10M Users</h2>
+  <h3>15.1 Compute layer</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Component</th><th>Hardware</th><th>Role</th><th>Throughput</th></tr></thead>
+    <tbody>
+      <tr><td>Encoder / Decoder — GPU</td><td>8× RTX 5090</td><td>Query encoding + output generation only</td><td>800–1,600 QPS</td></tr>
+      <tr><td>Graph Traversal — CPU</td><td>20× AMD EPYC servers</td><td>Bloom checks + multi-hop traversal</td><td>~10,000 QPS</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>15.2 Total hardware cost estimate</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Component</th><th>Quantity</th><th>Estimated Cost</th></tr></thead>
+    <tbody>
+      <tr><td>RTX 5090 GPUs</td><td>8</td><td>~$24,000</td></tr>
+      <tr><td>AMD EPYC CPU servers</td><td>20</td><td>~$200,000</td></tr>
+      <tr><td>NVMe SSD storage</td><td>20TB</td><td>~$4,000</td></tr>
+      <tr><td>HDD storage (cold tier)</td><td>200TB</td><td>~$6,000</td></tr>
+      <tr><td>RAM (64GB × 20 servers)</td><td>1.28TB total</td><td>~$15,000</td></tr>
+      <tr><td>Networking and load balancer</td><td>—</td><td>~$20,000</td></tr>
+      <tr><td><strong>Total</strong></td><td>—</td><td><strong>~$270,000</strong></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>15.3 Efficiency versus current AI models</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Factor</th><th>Current AI (GPT-4 class)</th><th>Paragi</th></tr></thead>
+    <tbody>
+      <tr><td>Hardware cost</td><td>$50M–$200M</td><td>~$270K</td></tr>
+      <tr><td>GPUs required</td><td>400–800 A100s</td><td>8× RTX 5090</td></tr>
+      <tr><td>RAM per query</td><td>800GB+</td><td>KBs</td></tr>
+      <tr><td>Power draw</td><td>50MW+ per cluster</td><td>~200KW total</td></tr>
+      <tr><td>Gets cheaper over time</td><td>❌ Same cost always</td><td>✅ Frequent queries cost less</td></tr>
+      <tr><td>Learns from users</td><td>❌ Frozen after training</td><td>✅ Every query strengthens graph</td></tr>
+      <tr><td>Knows what it doesn't know</td><td>❌ Hallucinates</td><td>✅ Expansion nodes</td></tr>
+      <tr><td>Explainable reasoning</td><td>❌ Black box</td><td>✅ Full path visible</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>15.4 The compounding efficiency advantage</h3>
+  <pre>Day 1    — 60% of queries require full traversal
+Month 3  — 30% of queries require full traversal
+Year 1   — 10% of queries require full traversal
+Year 2   —  3% of queries require full traversal
+
+Current AI: 100% traversal cost every query, forever.</pre>
+  <div class="box r"><strong>The compounding principle</strong>Current AI models never get cheaper to run. Usage growth means cost growth, linearly and permanently. Paragi inverts this — usage growth builds the shortcut network, making every subsequent query cheaper. Scale is a compounding asset, not a compounding liability.</div>
+</section>
+
+<section id="s16">
+  <h2><span class="sn">16.</span> Build Order — Step by Step</h2>
+  <p>The following is the complete, sequenced build plan for Paragi. Each step is self-contained and testable before the next begins. No step requires guesswork — each has a defined deliverable and a defined test.</p>
+
+  <h3>Phase 1 — Core Graph Engine</h3>
+  <pre>Step 1: Node and Edge Storage
+→ HDF5 file structure, node/edge creation, basic read/write
+Test: create "fire", create "burn", create edge, read back correctly
+
+Step 2: Bloom Filter Index
+→ exists(node_id) → True/False in microseconds
+Test: 1M nodes, existence check &lt; 1ms
+
+Step 3: Learning and Forgetting
+→ strengthen_edge, decay_all_edges, strength floor, background thread
+Test: decay 100 times, confirm strength never hits zero
+
+Step 4: Knowledge Bootstrap
+→ ConceptNet connector, typed edge parsing, 6 seed concepts
+Test: empty graph → run bootstrap → graph has real typed edges</pre>
+
+  <h3>Phase 2 — Reasoning Engine</h3>
+  <pre>Step 5: Multi-Hop Traversal
+→ find_paths(source, target, max_hops=7), mean edge scoring
+Test: "does steam burn?" → finds path through heat/temperature nodes
+
+Step 6: Edge Typing + Causal Discovery
+→ CAUSES/CORRELATES/IS_A/TEMPORAL/INFERRED, path_consensus()
+Test: add 3 independent paths A→B → edge auto-upgrades to CAUSES
+
+Step 7: Contradiction Resolution
+→ detect_contradiction, democratic_vote, confidence_score
+Test: 7 paths "fire burns", 1 "fire safe" → confidence 0.875
+
+Step 8: Expansion Nodes + Gap Filling
+→ create_expansion_node on failure, three-source cascade, auto-resolve
+Test: unknown question → expansion node → resolved in 30 seconds</pre>
+
+  <h3>Phase 3 — Temporary I/O Bridge</h3>
+  <pre>Step 9: Temporary Encoder
+→ fastembed BAAI/bge-small → 384-dim, mapped to dims 200–699
+→ interface fully defined so swappable later with zero other changes
+
+Step 10: Temporary Decoder
+→ template decoder: path + edge types → sentence
+→ "fire →[CAUSES]→ burn" → "Fire causes burns."
+
+Step 11: Query Pipeline — End to End
+→ text in → encode → bloom check → traverse → score → decode → text out</pre>
+
+  <h3>Phase 4 — Vector Control Integration</h3>
+  <pre>Step 12: Query Classification
+→ "I am sad" → dims 175–209  |  "Is fire hot?" → dims 580–639
+
+Step 13: Expand / Collapse Activation
+→ control block reads classification, repeated queries learn shortcuts
+
+Step 14: Hub Node Detection
+→ track edge_count per node, flag high-centrality nodes, detect analogies</pre>
+
+  <h3>Phase 5 — Own Encoder and Decoder</h3>
+  <pre>Step 15: Own Encoder
+→ trained on real graph data
+→ input: natural language → output: full 700-dim knowledge vector
+→ replaces fastembed with zero other changes
+
+Step 16: Own Decoder
+→ trained on path → language pairs
+→ handles complex multi-hop explanations</pre>
+
+  <h3>Phase 6 — Real-World Data Exposure</h3>
+  <pre>Step 17: Data Pipelines
+→ medical, physics, legal, news feed connectors
+
+Step 18: Quality Control
+→ confidence weighting per source, contradiction detection at ingestion</pre>
+
+  <h3>Phase 7 — Scale and Deploy</h3>
+  <pre>Step 19: Horizontal Scaling
+→ load balancer, shared HDF5 on NVMe, bloom filter sync across servers
+
+Step 20: Monitoring and Feedback Loop
+→ track fallback rate (goes down), shortcut formation (goes up)
+→ user feedback → edge strengthening signal</pre>
+
+  <div class="tw"><table>
+    <thead><tr><th>Phase</th><th>What</th><th>Rough Time</th></tr></thead>
+    <tbody>
+      <tr><td>Phase 1</td><td>Core graph engine</td><td>4–6 weeks</td></tr>
+      <tr><td>Phase 2</td><td>Reasoning engine</td><td>4–6 weeks</td></tr>
+      <tr><td>Phase 3</td><td>Temporary I/O bridge</td><td>2–3 weeks</td></tr>
+      <tr><td>Phase 4</td><td>Vector control integration</td><td>3–4 weeks</td></tr>
+      <tr><td>Phase 5</td><td>Own encoder and decoder</td><td>3–6 months</td></tr>
+      <tr><td>Phase 6</td><td>Real-world data exposure</td><td>Ongoing</td></tr>
+      <tr><td>Phase 7</td><td>Scale and deploy</td><td>4–8 weeks</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="s17">
+  <h2><span class="sn">17.</span> User Experience Architecture</h2>
+  <p>The architectural advantages of Paragi are internal by design. This section specifies how each internal advantage is surfaced visibly to users — transforming structural properties into felt product experiences. Every unique architectural property requires a visible surface in the product.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Internal Property</th><th>User-Visible Surface</th></tr></thead>
+    <tbody>
+      <tr><td>Graph traversal reasoning</td><td>Real-time node graph animation showing reasoning path</td></tr>
+      <tr><td>Expansion nodes</td><td>Internet search fallback — feels like thinking, not failure</td></tr>
+      <tr><td>Continuous learning</td><td>Answer evolution indicator — "Paragi knows more now"</td></tr>
+      <tr><td>Personal memory</td><td>Personal graph — visible, explorable, private</td></tr>
+      <tr><td>Main graph contributions</td><td>Contribution graph — public, credited, permanent</td></tr>
+      <tr><td>Compounding efficiency</td><td>Contribution leaderboard — users see collective intelligence grow</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>17.1 Pre-launch cold start solution</h3>
+  <p>The system undergoes extensive pre-launch seeded conversations across a wide range of topics and domains. By the time the first user signs up, the main graph is already rich and the experience feels complete from session one.</p>
+
+  <h3>17.2 Answer evolution</h3>
+  <pre>User opens history after 1 month
+↓
+Original question shown exactly as typed (raw_text preserved)
+Original answer shown as frozen snapshot — what Paragi knew then
+Indicator: "Paragi knows more about this now — see updated understanding"
+User clicks → new answer shown side-by-side with original</pre>
+  <div class="box r"><strong>The key distinction</strong>Every other AI gives you a snapshot. Paragi gives you a timeline. Knowledge has a history, a direction, and a trajectory. No existing AI can show this because no existing AI changes its understanding after deployment.</div>
+
+  <h3>17.3 Three-tier user hierarchy</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Tier</th><th>Behaviour</th><th>What they receive</th></tr></thead>
+    <tbody>
+      <tr><td>Casual users</td><td>Use the chat normally</td><td>Standard query allocation</td></tr>
+      <tr><td>Contributors</td><td>Teach the AI new knowledge</td><td>Extra queries per main graph contribution</td></tr>
+      <tr><td>Super contributors</td><td>Domain experts depositing deep knowledge</td><td>Effectively unlimited usage, community status, leaderboard rank</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="s18">
+  <h2><span class="sn">18.</span> Contribution Economy and Credit System</h2>
+  <h3>18.1 Two graphs per user</h3>
+  <pre>Personal Graph (private)
+→ stores information the user tells Paragi about themselves
+→ never shared, never visible to other users
+→ reward: better AI responses tailored to you — that is the reward
+→ no credits awarded for personal contributions
+
+Main Graph (shared — the AI itself)
+→ stores knowledge that benefits every user on the platform
+→ reward: 1 new node created in main system = 10 extra queries</pre>
+  <div class="box"><strong>Privacy protection by architecture</strong>Because personal graph contributions earn no credits, users have zero incentive to share private information to farm credits. The two-graph distinction is simultaneously the privacy model and the credit model.</div>
+
+  <h3>18.2 Anti-spam by architecture</h3>
+  <p>Credits are only awarded when a genuinely new node is created in the main system. Spam queries hit existing nodes — no new nodes created — no credits. There is no separate fraud detection system. The graph itself is the verification mechanism.</p>
+  <pre>Spam query     → hits existing nodes  → 0 credits
+Novel query    → creates new nodes    → credits awarded automatically
+Knowledge dump → many new nodes       → many credits</pre>
+
+  <h3>18.3 First contributor rule</h3>
+  <p>When two users attempt to teach Paragi the same new concept, the first contributor wins the credit. Nodes are created once — a second identical contribution finds the nodes already exist and receives no credit. This is enforced automatically by the Bloom filter existence check.</p>
+  <div class="box r"><strong>The race dynamic</strong>First-contributor-wins creates active competition. Early users explore aggressively to find gaps in the AI's knowledge. Users specialise by domain — physics, medicine, law. Domain expertise self-organises around the product for free.</div>
+
+  <h3>18.4 Contribution leaderboard by domain</h3>
+  <p>A public leaderboard displays top contributors per knowledge domain. Domain experts compete for the top spot within their field — the research and academic market acquired through status competition rather than marketing spend.</p>
+
+  <h3>18.5 The historic reversal</h3>
+  <div class="box r"><strong>On data acquisition economics</strong>Current AI companies pay billions for training data. Paragi is paid — in attention and knowledge — to collect it, and users contribute willingly because they are rewarded. Wikipedia built its knowledge base on volunteers. Paragi rewards contributors with usage credits. That is strictly better than Wikipedia's model.</div>
+
+  <h3>18.6 Credit economy and tiers</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Tier</th><th>Query allocation</th><th>Memory limit</th><th>How to increase</th></tr></thead>
+    <tbody>
+      <tr><td>Free</td><td>Limited per day</td><td>Small personal graph</td><td>Contribute to main graph</td></tr>
+      <tr><td>Paid</td><td>Large allocation</td><td>Larger personal graph</td><td>Subscription</td></tr>
+      <tr><td>Contributor</td><td>+10 queries per new main node</td><td>Expands with contribution balance</td><td>Teach the AI</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="s19">
+  <h2><span class="sn">19.</span> Conversation and Memory Storage</h2>
+  <h3>19.1 Conversations as graph traversal paths</h3>
+  <p>Paragi does not store conversation history as raw text logs. Every query is processed into nodes and edges. The conversation is the graph traversal path — the path the AI took to answer is itself the stored conversation. This is simultaneously more efficient and more useful than text storage.</p>
+
+  <h3>19.2 The three-field query record</h3>
+  <pre>query_record = {
+  "raw_text":        "what is gravity",   // exact user input, never modified
+  "node_path":       [node_id, ...],      // traversal path used to answer
+  "frozen_snapshot": "Gravity is...",     // answer at time of asking, immutable
+}
+
+// Latest answer is NOT stored — rebuilt dynamically from current graph
+// Storage per query: ~600 bytes (raw_text + frozen_snapshot)</pre>
+  <div class="box"><strong>Why raw_text is preserved separately</strong>The graph decoder reconstructs natural language from nodes. Without preserving the original input text, "what is gravity" might appear in history as "define gravity" — because the decoder interprets the node, not the original phrasing.</div>
+
+  <h3>19.3 Storage math at scale</h3>
+  <pre>1M users × 20 queries/day = 20M queries/day
+20M × 600 bytes = 12GB/day raw
+After deduplication (shared traversal paths): ~3–4GB/day actual
+
+At 10M users: ~30–40GB/day — standard database territory.</pre>
+
+  <h3>19.4 Intelligent memory pruning</h3>
+  <pre>Existing AI: deletes oldest memories regardless of importance
+
+Paragi: prunes by edge strength and access count
+→ low strength + never accessed  = pruned first
+→ high strength + frequently accessed = kept indefinitely
+→ matches how human memory actually consolidates</pre>
+
+  <p>When a memory is pruned, it is not hard-deleted. Its strength decays to the floor value — 0.001. If the user mentions the topic again, the connection reactivates immediately. Users never truly lose memories. They are deprioritised until triggered.</p>
+
+  <h3>19.5 Memory limits per tier</h3>
+  <pre>Free tier        → smaller personal graph, more aggressive pruning
+Paid tier        → larger limit, slower pruning
+Contributor tier → limit expands with contribution credit balance
+
+// More you teach the main graph → more personal memory allocated back to you</pre>
+</section>
+
+<section id="s20">
+  <h2><span class="sn">20.</span> Interface — Node Visualization Layer</h2>
+  <h3>20.1 Default mode — natural language</h3>
+  <p>The default interface is a standard chat. Users arriving from other AI tools feel immediately at home. Natural language in, natural language out. No learning curve required to begin using the system.</p>
+
+  <h3>20.2 Node visualization mode</h3>
+  <pre>User asks: "does steam burn?"
+↓
+steam node activates
+→ edge to water node fires (weight: 0.87)
+→ edge to temperature node fires (weight: 0.91)
+→ edge to hot node fires (weight: 0.95)
+→ edge to burn node fires — answer found
+→ confidence: 0.91 | path length: 4 hops
+↓
+Natural language answer rendered below the graph</pre>
+  <div class="box r"><strong>Why visualization becomes the product identity</strong>Showing reasoning as a live graph is the honest representation of the process. No other AI can show this because no other AI actually traverses a typed graph. The visualization proves that Paragi reasons differently.</div>
+
+  <h3>20.3 Personal graph view</h3>
+  <p>Users can open their personal graph as an explorable visual map — all the nodes Paragi has learned about them, organised by connection strength and topic cluster. This makes the memory system tangible and inspectable, building trust in what the system knows and does not know about the user.</p>
+
+  <h3>20.4 Contribution graph view</h3>
+  <p>A separate view shows the user's contribution to the main graph — which nodes they created, when, how many credits were earned, and their current rank on the domain leaderboard.</p>
+
+  <h3>20.5 Answer history with evolution indicator</h3>
+  <pre>──────────────────────────────────────────────────
+Q: what is gravity?                [asked 47 days ago]
+A: [frozen snapshot of original answer]
+
+  ↳ Paragi has learned more about this since then.
+    [Show updated understanding →]
+──────────────────────────────────────────────────
+
+User clicks → side-by-side: original answer vs current answer</pre>
+
+  <h3>20.6 Interface summary</h3>
+  <div class="tw"><table>
+    <thead><tr><th>View</th><th>Who uses it</th><th>What it shows</th></tr></thead>
+    <tbody>
+      <tr><td>Chat (default)</td><td>All users</td><td>Natural language Q&A</td></tr>
+      <tr><td>Node graph (toggle)</td><td>Power users, curious users</td><td>Live reasoning path animation</td></tr>
+      <tr><td>Personal graph</td><td>Any user</td><td>Private memory map, inspectable</td></tr>
+      <tr><td>Contribution graph</td><td>Contributors</td><td>Public contributions, credits, leaderboard rank</td></tr>
+      <tr><td>Answer history</td><td>Returning users</td><td>Past Q&A with evolution indicator</td></tr>
+      <tr><td>Domain leaderboard</td><td>Contributors</td><td>Top contributors per knowledge domain</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="s21">
+  <h2><span class="sn">21.</span> Conclusion</h2>
+  <p>Paragi presents a complete architecture for a continuously learning inference system. Its foundational principle — that nodes are pure data points and all meaning lives in edges — produces a system where intelligence is relational, not intrinsic. The 700/324 split of the edge vector provides both specific cognitive grounding and dynamic control. The Bloom filter plus HDF5 storage layer makes the system efficient at scale. The three-source knowledge cascade solves cold start without manual input.</p>
+  <p>The contribution economy transforms users from passive consumers into active co-builders. The two-graph model cleanly separates private context from public knowledge. The first-contributor rule creates a self-organising discovery race. Anti-spam is enforced by the graph itself. The credit system rewards genuine teaching and creates a data acquisition model that inverts the economics of every existing AI platform.</p>
+  <p>Conversation storage as traversal paths with raw text preservation and frozen snapshots enables answer evolution — making visible what every other AI hides: that understanding changes over time. Intelligent memory pruning by edge strength rather than age mirrors biological memory consolidation and is strictly more useful than any existing memory management approach.</p>
+  <p>At infrastructure scale, the $270K hardware footprint for 10M users compared to $50M–$200M for current GPT-4 class systems is a direct consequence of the architecture: graph traversal reads KBs per query, not gigabytes of model weights. The compounding shortcut effect means the system becomes cheaper to run as it matures, inverting the cost curve of every existing AI deployment model.</p>
+  <p>The architecture has no open problems at the design level. Two components remain in development: the own encoder and own decoder, which replace temporary dependencies with no changes to any other component.</p>
+
+  <div class="end">
+    <h3>Core Contribution Summary</h3>
+    <p>Nodes are pure points. All meaning, strength, direction, and behaviour lives in edges. Each edge carries a 1024-dim vector: 700-dim knowledge block with 20 named cognitive and decision-making factors across 5 human categories plus factual and causal dims, each with its own decay rate — plus 324-dim control block governing dynamic activation expansion. Multi-hop democratic consensus reasoning. Physical laws stored as standard edges. Emergent abstraction from hub nodes. Self-directed learning from expansion nodes. HDF5 + Bloom filter storage. Three-source knowledge bootstrap.</p>
+    <p>User-driven contribution economy: 1 new main-system node = 10 queries. Two-graph model separating private context from public knowledge. Anti-spam by architecture. First-contributor rule. Domain leaderboards. Conversation stored as traversal paths with raw text preservation and frozen answer snapshots enabling answer evolution. Intelligent memory pruning by edge strength, not age.</p>
+    <p>Full 10M-user infrastructure at ~$270K hardware cost versus $50M–$200M for current AI. Compounding cost efficiency with usage growth. Zero open problems at design level. Own encoder and decoder in development.</p>
+  </div>
+</section>
+
+<div class="footer">
+  Paragi Architecture — Working Paper v11.10.11 &nbsp;·&nbsp; Draft for development and implementation &nbsp;·&nbsp; Not for redistribution
+</div>
+
+</div>
+</body>
+</html>
