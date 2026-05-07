@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -16,6 +16,8 @@ from .expansion import ExpansionQueueStore, ExpansionResolver
 from .expansion_worker import ExpansionWorker
 from .external_sources import ConceptNetConnector, SemanticScholarConnector, WikipediaConnector
 from .graph import GraphEngine
+from .graph_translator import GraphTranslator
+from .crawler import ParagiCrawler
 from .llm_refiner import LLMRefiner, RefineResult
 from .models import EdgeType
 from .own_decoder import OwnDecoder
@@ -28,6 +30,7 @@ from .query_mode import decide_query_mode
 from .query_rewriter import QueryRewriter
 from .scope_policy import decide_scope
 from .user_state import UserStateStore, sanitize_user_id
+from . import translator_routes
 
 
 class NodeCreateRequest(BaseModel):
@@ -79,6 +82,10 @@ class QueryRequest(BaseModel):
 class UserRegisterRequest(BaseModel):
     user_id: str = Field(..., min_length=1, max_length=64)
     tier: str = Field(default="free", pattern="^(free|paid|contributor)$")
+
+
+class CrawlRequest(BaseModel):
+    url: str = Field(..., min_length=1)
 
 
 class AuthRegisterRequest(BaseModel):
@@ -133,6 +140,8 @@ def _initialize_state(app: FastAPI, *, start_workers: bool) -> None:
     else:
         decoder = TemporaryDecoder()
     classifier = QueryClassifier()
+    translator = GraphTranslator(model_name="phi3", data_dir=settings.data_dir)
+    crawler = ParagiCrawler(graph, translator)
     pipeline = QueryPipeline(
         graph,
         encoder,
@@ -172,6 +181,8 @@ def _initialize_state(app: FastAPI, *, start_workers: bool) -> None:
     app.state.auth_store = auth_store
     app.state.personal_graphs = personal_graphs
     app.state.llm_refiner = llm_refiner
+    app.state.translator = translator
+    app.state.crawler = crawler
     app.state.initialized = True
 
     if start_workers:
@@ -210,6 +221,7 @@ app = FastAPI(
     version="0.4.0",
     lifespan=lifespan,
 )
+app.include_router(translator_routes.router, prefix="/internal")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -276,6 +288,11 @@ def get_personal_graphs(request: Request) -> PersonalGraphManager:
 def get_llm_refiner(request: Request) -> LLMRefiner:
     _ = get_graph(request)
     return request.app.state.llm_refiner
+
+
+def get_crawler(request: Request) -> ParagiCrawler:
+    _ = get_graph(request)
+    return request.app.state.crawler
 
 
 def get_pipeline_for_scope(request: Request, *, scope: str, user_id: str) -> QueryPipeline:
@@ -1354,4 +1371,36 @@ def leaderboard_domains(request: Request) -> dict:
     return {
         "count": len(items),
         "items": items,
+    }
+
+
+@app.post("/crawl")
+async def trigger_crawl(
+    payload: CrawlRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    token: str = Header(...)
+) -> dict:
+    auth = get_auth_store(request)
+    session = auth.get_session(token)
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    user_state = get_user_state(request)
+    profile = user_state.get_user(session.user_id)
+    if profile.tier != "contributor":
+        raise HTTPException(status_code=403, detail="Contributor tier required")
+
+    crawler = get_crawler(request)
+    background_tasks.add_task(crawler.crawl_query, payload.url)
+
+    return {"ok": True, "message": "Crawl task queued"}
+
+
+@app.get("/crawl/status")
+def crawl_status(request: Request) -> dict:
+    crawler = get_crawler(request)
+    return {
+        "queue_size": crawler.queue_size,
+        "pages_crawled": crawler.pages_crawled
     }

@@ -336,6 +336,30 @@ class QueryApiTests(unittest.TestCase):
             self.assertEqual(logout.status_code, 200)
             self.assertTrue(logout.json()["ok"])
 
+    def test_crawl_endpoint_contributor_only(self) -> None:
+        with TestClient(app) as client:
+            # Register a contributor
+            reg = client.post("/auth/register", json={"user_id": "contributor_user", "password": "pass", "tier": "contributor"})
+            token = reg.json()["token"]
+
+            # Register a free user
+            reg_free = client.post("/auth/register", json={"user_id": "free_user", "password": "pass", "tier": "free"})
+            token_free = reg_free.json()["token"]
+
+            # Test contributor access
+            resp = client.post("/crawl", json={"url": "test query"}, headers={"token": token})
+            self.assertEqual(resp.status_code, 200)
+            self.assertTrue(resp.json()["ok"])
+
+            # Test free user denied
+            resp_free = client.post("/crawl", json={"url": "test query"}, headers={"token": token_free})
+            self.assertEqual(resp_free.status_code, 403)
+
+            # Test status
+            status = client.get("/crawl/status")
+            self.assertEqual(status.status_code, 200)
+            self.assertIn("queue_size", status.json())
+            self.assertIn("pages_crawled", status.json())
 
 if __name__ == "__main__":
     unittest.main()
