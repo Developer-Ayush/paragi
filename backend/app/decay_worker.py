@@ -23,8 +23,15 @@ class DecayWorker:
         self._thread.start()
 
     def _run(self) -> None:
+        # Every N cycles, we also run semantic deduplication
+        dedup_cycle_interval = 10
+        cycle_count = 0
         while not self._stop_event.wait(self.interval_seconds):
             self.last_decayed_edges = self.graph.decay_all_edges()
+            cycle_count += 1
+            if cycle_count >= dedup_cycle_interval:
+                self.graph.deduplicate_graph()
+                cycle_count = 0
 
     def stop(self) -> None:
         self._stop_event.set()
