@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -99,8 +100,8 @@ class GraphEngine:
         if settings.prefer_hdf5:
             try:
                 store = HDF5GraphStore(settings.hdf5_path)
-            except Exception:
-                store = InMemoryGraphStore()
+            except Exception as e:
+                raise RuntimeError(f"Failed to initialize HDF5 storage as requested: {e}")
         else:
             store = InMemoryGraphStore()
 
@@ -124,52 +125,46 @@ class GraphEngine:
             self.bloom.add(node_id)
         self._persist_bloom()
 
-    def create_or_get_node(self, label: str, force_new: bool = False) -> NodeRecord:
+    def create_or_get_node(self, label: str) -> NodeRecord:
         normalized = normalize_label(label)
         node_id = make_node_id(normalized)
         ts = now_ts()
 
-        if not force_new:
-            if node_id not in self.bloom:
-                node = NodeRecord(
-                    id=node_id,
-                    label=normalized,
-                    created=ts,
-                    last_accessed=ts,
-                    access_count=1,
-                )
-                self.store.upsert_node(node)
-                self.bloom.add(node_id)
-                self._persist_bloom()
-                return node
+        if node_id not in self.bloom:
+            node = NodeRecord(
+                id=node_id,
+                label=normalized,
+                created=ts,
+                last_accessed=ts,
+                access_count=1,
+            )
+            self.store.upsert_node(node)
+            self.bloom.add(node_id)
+            self._persist_bloom()
+            return node
 
-            existing = self.store.get_node(node_id)
-            if existing is not None:
-                updated = NodeRecord(
-                    id=existing.id,
-                    label=existing.label,
-                    created=existing.created,
-                    last_accessed=ts,
-                    access_count=existing.access_count + 1,
-                )
-                return self.store.upsert_node(updated)
+        existing = self.store.get_node(node_id)
+        if existing is not None:
+            updated = NodeRecord(
+                id=existing.id,
+                label=existing.label,
+                created=existing.created,
+                last_accessed=ts,
+                access_count=existing.access_count + 1,
+            )
+            return self.store.upsert_node(updated)
 
-        # Force new node or Bloom false-positive / missing in store
-        # For force_new, we generate a slightly different ID if the normalized one exists
-        if force_new:
-            node_id = make_node_id(normalized + f"_{ts}")
-
+        # Bloom false-positive or missing in store
         node = NodeRecord(
             id=node_id,
-            label=label,  # Preserve the original label for deduplication tests
+            label=normalized,
             created=ts,
             last_accessed=ts,
             access_count=1,
         )
         self.store.upsert_node(node)
-        if not force_new:
-            self.bloom.add(node_id)
-            self._persist_bloom()
+        self.bloom.add(node_id)
+        self._persist_bloom()
         return node
 
     def node_exists(self, label: str) -> bool:
@@ -238,7 +233,7 @@ class GraphEngine:
     def get_edge_by_id(self, edge_id: str) -> EdgeRecord | None:
         return self.store.get_edge(edge_id)
 
-    def strengthen_edge(self, edge_id: str, delta: float = 0.1) -> EdgeRecord | None:
+    def strengthen_edge(self, edge_id: str) -> EdgeRecord | None:
         edge = self.store.get_edge(edge_id)
         if edge is None:
             return None
@@ -258,11 +253,7 @@ class GraphEngine:
         # Calculate rule-based delta
         rule_delta = eta * (s - edge.strength) + (alpha * r) - (beta * decay_param)
 
-        # We take the maximum of the paper's rule delta and the provided manual delta
-        # to ensure strengthening always has a positive effect when triggered.
-        applied_delta = max(delta, rule_delta)
-
-        next_strength = max(self.edge_strength_floor, min(1.0, edge.strength + applied_delta))
+        next_strength = max(self.edge_strength_floor, min(1.0, edge.strength + rule_delta))
         self.store.update_edge_strength(edge_id, next_strength, increment_recall=True)
         return self.store.get_edge(edge_id)
 
@@ -282,8 +273,10 @@ class GraphEngine:
             if edge is None:
                 continue
 
-            # 1. Decay the main strength
-            next_strength = max(self.edge_strength_floor, edge.strength * (1.0 - base_decay))
+            # 1. Decay the main strength using exponential floor formula:
+            # strength(t) = floor + (initial - floor) * e^(-decay_rate * t)
+            # For one cycle: next = floor + (current - floor) * exp(-base_decay)
+            next_strength = self.edge_strength_floor + (edge.strength - self.edge_strength_floor) * math.exp(-base_decay)
 
             # 2. Decay the 1024-dim vector with per-dimension rates (§5.3)
             # Range 175–209 (Emotional): slowest

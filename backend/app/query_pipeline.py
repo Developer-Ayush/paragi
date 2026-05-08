@@ -70,9 +70,15 @@ class TemporaryEncoder:
         tokens = self.token_re.findall(normalized)
         vector_384 = self._embed_384(normalized, tokens)
         vector_700 = [0.0] * 700
-        # Phase-3 bridge: 384 temporary semantic dims mapped into 200..583.
+        # Phase-3 bridge: 384 temporary semantic dims mapped into 250..579 range.
+        # This range avoids overlaps with:
+        # §3.2 Emotional/Psychological (175-249)
+        # §3.2 Factual (580-639)
+        # We use as many of the 384 dims as fit into 250-579 (which is 330 dims).
         for idx, value in enumerate(vector_384):
-            vector_700[200 + idx] = float(value)
+            target_idx = 250 + idx
+            if target_idx <= 579:
+                vector_700[target_idx] = float(value)
         return EncodedQuery(
             raw_text=normalized,
             tokens=tokens,
@@ -381,7 +387,7 @@ class QueryPipeline:
             top = paths[0]
             if allow_learning:
                 for edge_id in top.edge_ids:
-                    self.graph.strengthen_edge(edge_id, delta=0.02)
+                    self.graph.strengthen_edge(edge_id)
             return QueryResponse(
                 answer=self.decoder.decode_path(top),
                 raw_text=encoded.raw_text,
@@ -643,6 +649,18 @@ class QueryPipeline:
                         best_value = candidate_value
                         best_target = target_label
                     break
+
+        # Generic fallback for any attribute stored via personal_fact_generic_pattern
+        if not best_value:
+            prefix = attribute + " "
+            for edge in neighbors:
+                target_label = self.graph.get_node_label(edge.target)
+                if target_label.startswith(prefix):
+                    candidate_value = target_label[len(prefix) :].strip()
+                    if candidate_value and edge.strength >= best_strength:
+                        best_strength = edge.strength
+                        best_value = candidate_value
+                        best_target = target_label
 
         if best_value:
             answer = f"Your {attribute} is {best_value}."

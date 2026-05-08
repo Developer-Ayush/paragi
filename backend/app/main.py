@@ -409,8 +409,8 @@ def get_edge(edge_id: str, request: Request) -> dict:
 
 
 @app.post("/edges/{edge_id}/strengthen")
-def strengthen_edge(edge_id: str, request: Request, delta: float = 0.1) -> dict:
-    edge = get_graph(request).strengthen_edge(edge_id, delta=delta)
+def strengthen_edge(edge_id: str, request: Request) -> dict:
+    edge = get_graph(request).strengthen_edge(edge_id)
     if edge is None:
         raise HTTPException(status_code=404, detail="Edge not found")
     return {"id": edge.id, "strength": edge.strength, "recall_count": edge.recall_count}
@@ -910,8 +910,8 @@ def encoder_training_recent(request: Request, limit: int = 20) -> dict:
 
 
 @app.post("/encoder/train")
-def encoder_train(payload: EncoderTrainRequest, request: Request) -> dict:
-    pipeline = get_pipeline(request)
+def encoder_train(payload: EncoderTrainRequest, request: Request, user_id: str = "guest", scope: str = "main") -> dict:
+    pipeline = get_pipeline_for_scope(request, scope=scope, user_id=user_id)
     encoder = pipeline.encoder
     train_fn = getattr(encoder, "train_from_records", None)
     if train_fn is None:
@@ -926,6 +926,8 @@ def encoder_train(payload: EncoderTrainRequest, request: Request) -> dict:
     )
     return {
         "ok": True,
+        "scope": scope,
+        "user_id": user_id,
         "encoder_backend": getattr(encoder, "_backend", "unknown"),
         "training_data_path": str(training_store.path),
         "summary": summary,

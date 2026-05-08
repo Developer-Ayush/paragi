@@ -9,4 +9,5 @@ playwright
 beautifulsoup4
 spacy
 ollama
+requests
 

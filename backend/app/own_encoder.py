@@ -23,6 +23,14 @@ class OwnEncodedQuery:
 
 class OwnEncoder:
     token_re = re.compile(r"[a-z0-9_]+")
+    # §3.2 named dimension ranges
+    RANGE_DECISION_FATIGUE = (0, 29)
+    RANGE_VISCERAL_STATES = (30, 69)
+    RANGE_EMOTIONAL_RANGE = (175, 209)
+    RANGE_PSYCHOLOGICAL_BLOCK = (210, 249)
+    RANGE_FACTUAL_WORLD = (580, 639)
+    RANGE_CAUSAL_RELATIONAL = (640, 669)
+
     domain_anchor_dims: dict[str, int] = {
         "general": 582,
         "medical": 596,
@@ -57,12 +65,29 @@ class OwnEncoder:
         vec = [0.0] * dims
         for token in tokens:
             digest = hashlib.blake2s(token.encode("utf-8"), digest_size=32).digest()
+            # Map into general knowledge range (not reserved for specific semantics)
+            # Reserved ranges from §3.2: 0-69, 175-249, 580-669
+            # General ranges: 70-174, 250-579, 670-699
+            general_ranges = [(70, 174), (250, 579), (670, 699)]
+            available_dims = sum(r[1] - r[0] + 1 for r in general_ranges)
+
             for slot in range(10):
                 b1 = digest[(slot * 2) % 32]
                 b2 = digest[(slot * 2 + 1) % 32]
-                index = ((b1 << 8) | b2) % dims
+                raw_index = ((b1 << 8) | b2) % available_dims
+
+                # Map raw_index back to general_ranges
+                curr = 0
+                mapped_index = 0
+                for start, end in general_ranges:
+                    size = end - start + 1
+                    if curr + size > raw_index:
+                        mapped_index = start + (raw_index - curr)
+                        break
+                    curr += size
+
                 sign = 1.0 if digest[(slot + 13) % 32] % 2 == 0 else -1.0
-                vec[index] += sign
+                vec[mapped_index] += sign
         return vec
 
     def _apply_domain_priors(self, vec: list[float], tokens: list[str]) -> None:
