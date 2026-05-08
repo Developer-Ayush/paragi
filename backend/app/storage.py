@@ -49,6 +49,18 @@ class GraphStore(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def delete_node(self, node_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_edge(self, edge_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_incoming(self, target_id: str) -> List[EdgeRecord]:
+        raise NotImplementedError
+
+    @abstractmethod
     def close(self) -> None:
         raise NotImplementedError
 
@@ -105,6 +117,21 @@ class InMemoryGraphStore(GraphStore):
             edge.strength = float(new_strength)
             if increment_recall:
                 edge.recall_count += 1
+
+    def delete_node(self, node_id: str) -> None:
+        with self._lock:
+            self.nodes.pop(node_id, None)
+            self.adj.pop(node_id, None)
+
+    def delete_edge(self, edge_id: str) -> None:
+        with self._lock:
+            edge = self.edges.pop(edge_id, None)
+            if edge and edge.source in self.adj:
+                self.adj[edge.source].discard(edge_id)
+
+    def list_incoming(self, target_id: str) -> List[EdgeRecord]:
+        with self._lock:
+            return [e for e in self.edges.values() if e.target == target_id]
 
     def close(self) -> None:
         return
@@ -239,6 +266,32 @@ class HDF5GraphStore(GraphStore):
             if increment_recall:
                 grp.attrs["recall_count"] = int(grp.attrs["recall_count"]) + 1
             self._h5.flush()
+
+    def delete_node(self, node_id: str) -> None:
+        with self._lock:
+            if node_id in self._nodes:
+                del self._nodes[node_id]
+            if node_id in self._adj:
+                del self._adj[node_id]
+            self._h5.flush()
+
+    def delete_edge(self, edge_id: str) -> None:
+        with self._lock:
+            if edge_id in self._edges:
+                edge = self._edge_from_group(self._edges[edge_id])
+                del self._edges[edge_id]
+                if edge.source in self._adj and edge_id in self._adj[edge.source]:
+                    del self._adj[edge.source][edge_id]
+            self._h5.flush()
+
+    def list_incoming(self, target_id: str) -> List[EdgeRecord]:
+        with self._lock:
+            result: List[EdgeRecord] = []
+            for edge_id in self._edges.keys():
+                grp = self._edges[edge_id]
+                if str(grp.attrs["target"]) == target_id:
+                    result.append(self._edge_from_group(grp))
+            return result
 
     def close(self) -> None:
         with self._lock:

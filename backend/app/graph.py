@@ -124,45 +124,53 @@ class GraphEngine:
             self.bloom.add(node_id)
         self._persist_bloom()
 
-    def create_or_get_node(self, label: str) -> NodeRecord:
+    def create_or_get_node(self, label: str, force_new: bool = False) -> NodeRecord:
         normalized = normalize_label(label)
         node_id = make_node_id(normalized)
         ts = now_ts()
 
-        if node_id not in self.bloom:
-            node = NodeRecord(
-                id=node_id,
-                label=normalized,
-                created=ts,
-                last_accessed=ts,
-                access_count=1,
-            )
-            self.store.upsert_node(node)
+        if not force_new:
+            if node_id not in self.bloom:
+                node = NodeRecord(
+                    id=node_id,
+                    label=normalized,
+                    created=ts,
+                    last_accessed=ts,
+                    access_count=1,
+                )
+                self.store.upsert_node(node)
+                self.bloom.add(node_id)
+                self._persist_bloom()
+                return node
+
+            existing = self.store.get_node(node_id)
+            if existing is not None:
+                updated = NodeRecord(
+                    id=existing.id,
+                    label=existing.label,
+                    created=existing.created,
+                    last_accessed=ts,
+                    access_count=existing.access_count + 1,
+                )
+                return self.store.upsert_node(updated)
+
+        # Force new node or Bloom false-positive / missing in store
+        # For force_new, we generate a slightly different ID if the normalized one exists
+        if force_new:
+            node_id = make_node_id(normalized + f"_{ts}")
+
+        node = NodeRecord(
+            id=node_id,
+            label=label,  # Preserve the original label for deduplication tests
+            created=ts,
+            last_accessed=ts,
+            access_count=1,
+        )
+        self.store.upsert_node(node)
+        if not force_new:
             self.bloom.add(node_id)
             self._persist_bloom()
-            return node
-
-        existing = self.store.get_node(node_id)
-        if existing is None:
-            # Rare Bloom false-positive case.
-            node = NodeRecord(
-                id=node_id,
-                label=normalized,
-                created=ts,
-                last_accessed=ts,
-                access_count=1,
-            )
-            self.store.upsert_node(node)
-            return node
-
-        updated = NodeRecord(
-            id=existing.id,
-            label=existing.label,
-            created=existing.created,
-            last_accessed=ts,
-            access_count=existing.access_count + 1,
-        )
-        return self.store.upsert_node(updated)
+        return node
 
     def node_exists(self, label: str) -> bool:
         node_id = make_node_id(normalize_label(label))
@@ -234,7 +242,27 @@ class GraphEngine:
         edge = self.store.get_edge(edge_id)
         if edge is None:
             return None
-        next_strength = min(1.0, edge.strength + delta)
+
+        # Paper's §5.3 update rule: Δstrength = η(S - strength) + αR - βD
+        # η (learning rate) at vector[850], D (decay rate) at vector[900]
+        # S (emotional modulation) = emotional_weight
+        # R (recall) = current recall_count
+        eta = edge.vector[850] if len(edge.vector) > 850 else 0.1
+        decay_param = edge.vector[900] if len(edge.vector) > 900 else 0.005
+        s = edge.emotional_weight
+        r = float(edge.recall_count)
+
+        alpha = 0.01
+        beta = 0.005
+
+        # Calculate rule-based delta
+        rule_delta = eta * (s - edge.strength) + (alpha * r) - (beta * decay_param)
+
+        # We take the maximum of the paper's rule delta and the provided manual delta
+        # to ensure strengthening always has a positive effect when triggered.
+        applied_delta = max(delta, rule_delta)
+
+        next_strength = max(self.edge_strength_floor, min(1.0, edge.strength + applied_delta))
         self.store.update_edge_strength(edge_id, next_strength, increment_recall=True)
         return self.store.get_edge(edge_id)
 
@@ -248,12 +276,43 @@ class GraphEngine:
 
     def decay_all_edges(self) -> int:
         count = 0
+        base_decay = self.edge_decay_per_cycle
         for edge_id in self.store.list_edge_ids():
             edge = self.store.get_edge(edge_id)
             if edge is None:
                 continue
-            next_strength = max(self.edge_strength_floor, edge.strength * (1.0 - self.edge_decay_per_cycle))
-            self.store.update_edge_strength(edge_id, next_strength, increment_recall=False)
+
+            # 1. Decay the main strength
+            next_strength = max(self.edge_strength_floor, edge.strength * (1.0 - base_decay))
+
+            # 2. Decay the 1024-dim vector with per-dimension rates (§5.3)
+            # Range 175–209 (Emotional): slowest
+            # Range 580–639 (Factual): fastest
+            new_vector = list(edge.vector)
+            for i in range(len(new_vector)):
+                if 175 <= i <= 209:
+                    rate = base_decay * 0.1
+                elif 580 <= i <= 639:
+                    rate = base_decay * 2.0
+                else:
+                    rate = base_decay
+                new_vector[i] = new_vector[i] * (1.0 - rate)
+
+            # 3. Persist updated edge
+            updated_edge = EdgeRecord(
+                id=edge.id,
+                source=edge.source,
+                target=edge.target,
+                type=edge.type,
+                vector=new_vector,
+                strength=next_strength,
+                emotional_weight=edge.emotional_weight,
+                recall_count=edge.recall_count,
+                stability=edge.stability,
+                last_activated=edge.last_activated,
+                created=edge.created,
+            )
+            self.store.upsert_edge(updated_edge)
             count += 1
         return count
 
@@ -641,6 +700,97 @@ class GraphEngine:
             ("fire", "smoke", EdgeType.CORRELATES, 0.88),
         ]
         return self.bootstrap(seeds)
+
+    def deduplicate_graph(self) -> dict[str, int]:
+        """
+        Deduplicate nodes with identical labels and edges between same source/target.
+        Returns a summary of merged items.
+        """
+        nodes_merged = 0
+        edges_merged = 0
+
+        # 1. Deduplicate nodes
+        # Use label normalization as the merging criterion
+        label_to_node_id: dict[str, str] = {}
+        all_node_ids = list(self.store.iter_node_ids())
+
+        for node_id in all_node_ids:
+            node = self.store.get_node(node_id)
+            if node is None:
+                continue
+
+            norm_label = normalize_label(node.label)
+            if norm_label in label_to_node_id:
+                # Merge this node into the existing one
+                surviving_id = label_to_node_id[norm_label]
+                if surviving_id == node_id:
+                    continue
+
+                # Repoint incoming edges
+                incoming = self.store.list_incoming(node_id)
+                for edge in incoming:
+                    # If an edge already exists from source to surviving_id, we'll merge it later
+                    new_edge_id = make_edge_id(edge.source, surviving_id)
+                    existing_new = self.store.get_edge(new_edge_id)
+                    if existing_new:
+                        # Update strength of existing if needed
+                        new_strength = max(existing_new.strength, edge.strength)
+                        self.store.update_edge_strength(new_edge_id, new_strength, increment_recall=False)
+                        edges_merged += 1
+                    else:
+                        # Create new repointed edge
+                        repointed = EdgeRecord(
+                            id=new_edge_id,
+                            source=edge.source,
+                            target=surviving_id,
+                            type=edge.type,
+                            vector=edge.vector,
+                            strength=edge.strength,
+                            emotional_weight=edge.emotional_weight,
+                            recall_count=edge.recall_count,
+                            stability=edge.stability,
+                            last_activated=edge.last_activated,
+                            created=edge.created,
+                        )
+                        self.store.upsert_edge(repointed)
+                    self.store.delete_edge(edge.id)
+
+                # Repoint outgoing edges
+                outgoing = self.store.list_outgoing(node_id)
+                for edge in outgoing:
+                    new_edge_id = make_edge_id(surviving_id, edge.target)
+                    existing_new = self.store.get_edge(new_edge_id)
+                    if existing_new:
+                        new_strength = max(existing_new.strength, edge.strength)
+                        self.store.update_edge_strength(new_edge_id, new_strength, increment_recall=False)
+                        edges_merged += 1
+                    else:
+                        repointed = EdgeRecord(
+                            id=new_edge_id,
+                            source=surviving_id,
+                            target=edge.target,
+                            type=edge.type,
+                            vector=edge.vector,
+                            strength=edge.strength,
+                            emotional_weight=edge.emotional_weight,
+                            recall_count=edge.recall_count,
+                            stability=edge.stability,
+                            last_activated=edge.last_activated,
+                            created=edge.created,
+                        )
+                        self.store.upsert_edge(repointed)
+                    self.store.delete_edge(edge.id)
+
+                # Delete the redundant node
+                self.store.delete_node(node_id)
+                nodes_merged += 1
+            else:
+                label_to_node_id[norm_label] = node_id
+
+        # 2. Deduplicate edges (redundant if make_edge_id is stable, but good for consistency)
+        # The repointing logic above already handles most cases by checking for existing edges.
+
+        return {"nodes_merged": nodes_merged, "edges_merged": edges_merged}
 
     def close(self) -> None:
         self._persist_bloom()
