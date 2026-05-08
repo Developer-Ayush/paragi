@@ -7,7 +7,10 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
-import ollama
+try:
+    import ollama
+except ImportError:
+    ollama = None
 import spacy
 from .models import EdgeType
 
@@ -30,6 +33,9 @@ class GraphTranslator:
         self.valid_relations = [e.value for e in EdgeType]
 
     def _call_ollama(self, prompt: str, system: str, format: str = "") -> str | None:
+        if ollama is None:
+            logger.error("Ollama library not installed.")
+            return None
         try:
             options = {"temperature": 0.0}
             response = ollama.generate(

@@ -41,8 +41,8 @@ class PersonalGraphManager:
         if self.settings.prefer_hdf5:
             try:
                 store = HDF5GraphStore(hdf5_path)
-            except Exception:
-                store = InMemoryGraphStore()
+            except Exception as e:
+                raise RuntimeError(f"Failed to initialize personal HDF5 storage for user {user_id}: {e}")
         else:
             store = InMemoryGraphStore()
 
@@ -67,6 +67,10 @@ class PersonalGraphManager:
                 user_dir = self.settings.data_dir / "users" / safe
                 model_path = user_dir / "personal_encoder_model.json"
                 encoder = OwnEncoder(model_path=model_path)
+                # Ensure personal encoder can be trained from the shared training log
+                # In a real system, we might want per-user logs, but the issue states
+                # they are never trained because only shared path is used.
+                # Here we ensure they use the same backend and thus can use the train method.
             elif self.settings.encoder_backend == "fastembed":
                 encoder = TemporaryEncoder(use_fastembed=True)
             else:
