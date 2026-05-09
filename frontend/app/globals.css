@@ -47,17 +47,39 @@ input {
 .login-page {
   display: grid;
   place-items: center;
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background: 
+    radial-gradient(circle at 15% 50%, rgba(250, 235, 207, 0.6), transparent 30%),
+    radial-gradient(circle at 85% 30%, rgba(255, 236, 201, 0.6), transparent 30%),
+    linear-gradient(135deg, var(--bg-top), var(--bg-bottom));
+  animation: bg-shift 15s ease-in-out infinite alternate;
+}
+
+@keyframes bg-shift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
 }
 
 .login-card {
-  width: min(460px, 94vw);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  box-shadow: var(--shadow);
-  padding: 24px;
+  width: min(440px, 92vw);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 24px;
+  box-shadow: 0 16px 40px rgba(52, 38, 16, 0.08), inset 0 1px 0 rgba(255, 255, 255, 1);
+  padding: 32px;
   display: grid;
-  gap: 10px;
+  gap: 16px;
+  position: relative;
+  z-index: 10;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.login-card:hover {
+  transform: translateY(-4px);
 }
 
 .login-card h1 {
@@ -94,18 +116,35 @@ input {
 .graphs-actions button,
 .login-card button {
   border: 1px solid #c4aa84;
-  background: #efdbbc;
+  background: linear-gradient(180deg, #f7ebd7, #efdbbc);
   color: #3d2c17;
-  border-radius: 10px;
-  padding: 9px 12px;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+
+.login-card button:hover {
+  background: linear-gradient(180deg, #fff2e1, #f5e2c5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.05);
 }
 
 .mode-switch button.active,
 .login-card button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: linear-gradient(180deg, #b04620, var(--accent));
+  border-color: #8a3113;
   color: #fff;
+  box-shadow: 0 4px 12px rgba(159, 59, 25, 0.25);
+}
+
+.mode-switch button.active:hover,
+.login-card button.primary:hover {
+  background: linear-gradient(180deg, #bd4e25, #ac411c);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(159, 59, 25, 0.35);
 }
 
 .chat-layout {
