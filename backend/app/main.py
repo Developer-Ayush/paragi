@@ -239,8 +239,8 @@ app = FastAPI(
 # CORS must be added before routers to ensure it catches all preflights
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
@@ -248,16 +248,20 @@ app.add_middleware(
 
 app.include_router(translator_routes.router, prefix="/internal")
 
-@app.middleware("http")
-async def add_cors_headers(request: Request, call_next):
-    response = await call_next(request)
-    origin = request.headers.get("Origin")
-    if origin:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-    return response
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    from fastapi.responses import JSONResponse
+    origin = request.headers.get("Origin", "*")
+    return JSONResponse(
+        status_code=500,
+        content={"ok": False, "detail": str(exc)},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "false",
+        }
+    )
 
 
 def get_graph(request: Request) -> GraphEngine:
