@@ -199,11 +199,12 @@ class QueryPipeline:
         re.compile(r"^\s*is\s+([a-z0-9_]+)\s+([a-z0-9_]+)\??\s*$"),
     ]
     concept_patterns = [
-        re.compile(r"^\s*what\s+(?:is|are)\s+([a-z0-9_ ]+)\??\s*$"),
-        re.compile(r"^\s*who\s+(?:is|was|are)\s+([a-z0-9_ ]+)\??\s*$"),
+        re.compile(r"^\s*what\s+(?:is+|are)\s+([a-z0-9_ ]+)\??\s*$"),
+        re.compile(r"^\s*who\s+(?:is+|was|are)\s+([a-z0-9_ ]+)\??\s*$"),
         re.compile(r"^\s*(?:define|describe|explain)\s+([a-z0-9_ ]+)\??\s*$"),
         re.compile(r"^\s*tell\s+me\s+about\s+([a-z0-9_ ]+)\??\s*$"),
     ]
+    general_fact_pattern = re.compile(r"^\s*([a-z0-9_ ]+?)\s+is\s+([a-z0-9_ ]+)\s*$")
     personal_patterns = [
         (re.compile(r"^\s*my\s+name\s+is\s+([a-z0-9_ ]+)\s*$"), "name"),
         (re.compile(r"^\s*my\s+nationality\s+is\s+([a-z0-9_ ]+)\s*$"), "nationality"),
@@ -294,6 +295,16 @@ class QueryPipeline:
                 steps=steps,
             )
 
+        if intent.kind == "general_fact" and intent.source and intent.target:
+            return self._run_general_fact(
+                encoded,
+                profile=profile,
+                source=intent.source,
+                target=intent.target,
+                steps=steps,
+                allow_learning=allow_learning,
+            )
+
         return QueryResponse(
             answer="I can answer relation questions like 'does steam burn?' and concept questions like 'what is fire?'.",
             raw_text=encoded.raw_text,
@@ -363,6 +374,18 @@ class QueryPipeline:
             concept = pattern.match(raw_text)
             if concept:
                 return QueryIntent(kind="concept", concept=normalize_label(concept.group(1)))
+                
+        general_fact_match = self.general_fact_pattern.match(raw_text)
+        if general_fact_match:
+            subject = normalize_label(general_fact_match.group(1))
+            obj = normalize_label(general_fact_match.group(2))
+            if subject and obj and subject not in ("what", "who", "where", "when", "why", "how", "which"):
+                return QueryIntent(
+                    kind="general_fact",
+                    source=subject,
+                    target=obj,
+                )
+
         return QueryIntent(kind="unknown")
 
     def _run_relation(
@@ -740,3 +763,62 @@ class QueryPipeline:
         vector[950] = 0.7 if profile.shortcut_applied else 0.4
         vector[1000] = 1.0
         return vector
+
+    def _run_general_fact(
+        self,
+        encoded: EncodedQuery,
+        *,
+        profile: ActivationProfile,
+        source: str,
+        target: str,
+        steps: list[str],
+        allow_learning: bool,
+    ) -> QueryResponse:
+        created = 0
+        new_nodes = 0
+        if allow_learning:
+            source_exists = self.graph.node_exists(source)
+            target_exists = self.graph.node_exists(target)
+            
+            self.graph.create_edge(
+                source,
+                target,
+                EdgeType.IS_A,
+                strength=0.95,
+                vector=self._build_edge_vector(encoded.semantic_vector, EdgeType.IS_A, profile),
+            )
+            self.graph.create_edge(
+                target,
+                source,
+                EdgeType.CORRELATES,
+                strength=0.95,
+                vector=self._build_edge_vector(encoded.semantic_vector, EdgeType.CORRELATES, profile),
+            )
+            created = 2
+            if not source_exists:
+                new_nodes += 1
+            if not target_exists:
+                new_nodes += 1
+            steps.append("general_fact:stored")
+        else:
+            steps.append("learning:disabled")
+
+        answer = f"Noted. I will remember that {source} is {target}."
+        return QueryResponse(
+            answer=answer,
+            raw_text=encoded.raw_text,
+            source=source,
+            target=target,
+            used_fallback=False,
+            created_edges=created,
+            confidence=0.99 if created else 0.0,
+            node_path=[source, target] if created else [source],
+            steps=steps + ["decode:general_fact"],
+            encoder_backend=encoded.backend,
+            activation_ranges=profile.active_ranges,
+            active_dims=profile.active_dims,
+            shortcut_applied=profile.shortcut_applied,
+            expansion_node_id=None,
+            new_nodes_created=new_nodes,
+        )
+
