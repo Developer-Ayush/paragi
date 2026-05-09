@@ -7,12 +7,16 @@ if (API_BASE.includes("onrender.com") && API_BASE.startsWith("http://")) {
 console.log("DEBUG: Paragi API_BASE is set to:", API_BASE);
 
 async function request(path, options = {}) {
+  const method = options.method || "GET";
+  const headers = { ...options.headers };
+  
+  if (method !== "GET" && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers,
     cache: "no-store",
   });
 
