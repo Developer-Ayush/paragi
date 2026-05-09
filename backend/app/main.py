@@ -831,6 +831,7 @@ def query(payload: QueryRequest, request: Request) -> dict:
 
     llm = get_llm_refiner(request)
     llm_mode = "skip"
+    llm_policy = "translator_only"
     
     # Fast-Path: If confidence is very high, we can skip the second LLM call
     # But to satisfy the "always pass through LLM" request while staying fast,
