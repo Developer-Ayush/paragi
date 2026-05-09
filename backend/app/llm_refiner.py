@@ -350,8 +350,8 @@ class LLMRefiner:
     def _request_generate_groq(
         self, prompt: str, *, temperature: float, max_tokens: int
     ) -> tuple[str, float | None, str | None]:
-        endpoint = "https://api.groq.com/openai/v1/chat/completions"
-        model = self.model if self.model and self.model != "gemma3:4b" else "gemma2-9b-it"
+        endpoint = "https://openrouter.ai/api/v1/chat/completions"
+        model = self.model if self.model and self.model != "google/gemma-4-31b-it:free"
         body = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
