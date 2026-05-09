@@ -203,6 +203,11 @@ class QueryPipeline:
         re.compile(r"^\s*who\s+(?:is+|was|are)\s+(.+?)\??\s*$"),
         re.compile(r"^\s*(?:define|describe|explain)\s+(.+?)\??\s*$"),
         re.compile(r"^\s*tell\s+me\s+about\s+(.+?)\??\s*$"),
+        re.compile(r"^\s*how\s+(?:much|many|big|old|tall|fast|far|long)\s+(.+?)\??\s*$"),
+        re.compile(r"^\s*how\s+(?:do|does|did|is|are|was|were|can|could)\s+(.+?)\??\s*$"),
+        re.compile(r"^\s*where\s+(?:is|are|was|were|do|does|did|can)\s+(.+?)\??\s*$"),
+        re.compile(r"^\s*when\s+(?:is|are|was|were|do|does|did|will)\s+(.+?)\??\s*$"),
+        re.compile(r"^\s*why\s+(?:is|are|do|does|did|was|were|can)\s+(.+?)\??\s*$"),
         re.compile(r"^\s*(.+?\s+of\s+.+?)\??\s*$"),
     ]
     general_fact_pattern = re.compile(r"^\s*(.+?)\s+is\s+(.+?)\s*$")

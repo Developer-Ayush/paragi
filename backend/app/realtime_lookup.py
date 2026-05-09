@@ -11,6 +11,11 @@ _WHAT_IS_PERSON_ROLE_RE = re.compile(
     r"^\s*what\s+is\s+the\s+(?:current|present|latest)\s+(.+?)\??\s*$",
     re.IGNORECASE,
 )
+_WHAT_IS_RE = re.compile(r"^\s*what\s+(?:is|are)\s+(.+?)\??\s*$", re.IGNORECASE)
+_EXPLAIN_RE = re.compile(r"^\s*(?:define|describe|explain)\s+(.+?)\??\s*$", re.IGNORECASE)
+_TELL_ME_RE = re.compile(r"^\s*tell\s+me\s+about\s+(.+?)\??\s*$", re.IGNORECASE)
+_HOW_MUCH_RE = re.compile(r"^\s*how\s+(?:much|many|big|old|tall|fast|far|long)\s+(.+?)\??\s*$", re.IGNORECASE)
+_X_OF_Y_RE = re.compile(r"^\s*(.+?\s+of\s+.+?)\??\s*$", re.IGNORECASE)
 _HYDRATION_TROUBLESHOOT_RE = re.compile(
     r"\bhydration\b.*\berror\b|\berror\b.*\bhydration\b",
     re.IGNORECASE,
@@ -66,10 +71,23 @@ def fetch_troubleshooting_answer(question: str) -> tuple[str, str] | None:
 
 
 def _extract_subject(text: str) -> str:
-    m = _WHO_IS_RE.match(text)
-    if m:
-        return m.group(1).strip()
-    m2 = _WHAT_IS_PERSON_ROLE_RE.match(text)
-    if m2:
-        return m2.group(1).strip()
+    for pattern in (
+        _WHO_IS_RE,
+        _WHAT_IS_PERSON_ROLE_RE,
+        _WHAT_IS_RE,
+        _EXPLAIN_RE,
+        _TELL_ME_RE,
+        _HOW_MUCH_RE,
+        _X_OF_Y_RE,
+    ):
+        m = pattern.match(text)
+        if m:
+            subject = m.group(1).strip()
+            # Strip leading articles for better Wikipedia title matching
+            for prefix in ("the ", "a ", "an "):
+                if subject.lower().startswith(prefix):
+                    subject = subject[len(prefix):]
+                    break
+            return subject.strip()
     return ""
+

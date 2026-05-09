@@ -810,6 +810,21 @@ def query(payload: QueryRequest, request: Request) -> dict:
                 total_duration_ms=None,
             )
 
+    # Fallback: for concept/unknown queries the graph couldn't answer, try Wikipedia
+    if llm_mode == "skip" and result.confidence < 0.01 and intent_kind in ("concept", "unknown"):
+        wiki = fetch_realtime_answer(rewritten_text)
+        if wiki is not None:
+            answer_text, source_name = wiki
+            llm_mode = "web"
+            llm_result = RefineResult(
+                answer=answer_text,
+                used=False,
+                backend="web",
+                model=source_name,
+                error=None,
+                total_duration_ms=None,
+            )
+
     final_answer = llm_result.answer.strip() if llm_result.answer.strip() else result.answer
 
     contribution = {
