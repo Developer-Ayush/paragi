@@ -41,6 +41,10 @@ class Settings:
     llm_policy: str
     llm_api_key: str
     google_client_id: str
+    # Phase 2/4/6 — Unified cognition engine settings
+    learning_confidence_threshold: float
+    episodic_decay_hours: float
+    realtime_ttl_seconds: float
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -80,6 +84,11 @@ class Settings:
         llm_api_key = os.getenv("GROQ_API_KEY", "").strip() or os.getenv("PARAGI_LLM_API_KEY", "").strip()
         google_client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 
+        # Phase 2/4/6 settings
+        learning_confidence_threshold = float(os.getenv("PARAGI_LEARNING_THRESHOLD", "0.5"))
+        episodic_decay_hours = float(os.getenv("PARAGI_EPISODIC_DECAY_HOURS", "24.0"))
+        realtime_ttl_seconds = float(os.getenv("PARAGI_REALTIME_TTL_SECONDS", "3600.0"))
+
         settings = cls(
             data_dir=data_dir,
             hdf5_path=hdf5_path,
@@ -115,6 +124,9 @@ class Settings:
             llm_policy=llm_policy,
             llm_api_key=llm_api_key,
             google_client_id=google_client_id,
+            learning_confidence_threshold=learning_confidence_threshold,
+            episodic_decay_hours=episodic_decay_hours,
+            realtime_ttl_seconds=realtime_ttl_seconds,
         )
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         return settings

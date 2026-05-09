@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import GraphCanvas from "@/components/GraphCanvas";
-import { graphSummary, userImpact } from "@/lib/api";
+import { graphSummary, graphUserSummary, userImpact } from "@/lib/api";
 
 function formatTime(timestampSeconds) {
   if (!timestampSeconds) return "-";
@@ -29,7 +29,7 @@ export default function GraphPanel({ userId, refreshSignal = 0 }) {
       try {
         const [impactData, mainSummary, personalSummary] = await Promise.all([
           userImpact(userId, 30),
-          graphSummary({ scope: "main", userId, nodeLimit: 70, edgeLimit: 120, minStrength: 0.03 }),
+          graphUserSummary({ userId, nodeLimit: 70, edgeLimit: 120 }),
           graphSummary({ scope: "personal", userId, nodeLimit: 70, edgeLimit: 120, minStrength: 0.01 }),
         ]);
         if (cancelled) return;
@@ -151,7 +151,7 @@ export default function GraphPanel({ userId, refreshSignal = 0 }) {
       ) : (
         <>
           <GraphCanvas
-            title="Main Graph Visual"
+            title="Your Main Graph Contributions"
             summary={main}
             nodeLimit={24}
             edgeLimit={52}

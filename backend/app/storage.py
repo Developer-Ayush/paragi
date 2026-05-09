@@ -168,6 +168,7 @@ class HDF5GraphStore(GraphStore):
             stability=float(group.attrs["stability"]),
             last_activated=float(group.attrs["last_activated"]),
             created=float(group.attrs["created"]),
+            confidence=float(group.attrs.get("confidence", 0.5)),
         )
 
     def _node_from_group(self, group) -> NodeRecord:
@@ -216,6 +217,7 @@ class HDF5GraphStore(GraphStore):
                 grp.attrs["recall_count"] = int(edge.recall_count)
                 grp.attrs["stability"] = float(edge.stability)
                 grp.attrs["last_activated"] = float(edge.last_activated)
+                grp.attrs["confidence"] = float(edge.confidence)
                 grp["vector"][()] = np.array(edge.vector, dtype=np.float32)
             else:
                 grp = self._edges.create_group(edge.id)
@@ -229,6 +231,7 @@ class HDF5GraphStore(GraphStore):
                 grp.attrs["stability"] = float(edge.stability)
                 grp.attrs["last_activated"] = float(edge.last_activated)
                 grp.attrs["created"] = float(edge.created)
+                grp.attrs["confidence"] = float(edge.confidence)
                 grp.create_dataset("vector", data=np.array(edge.vector, dtype=np.float32))
 
             source_group = self._adj.require_group(edge.source)

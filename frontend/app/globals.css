@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg-top: #f4f0e3;
   --bg-bottom: #ede4d2;
   --card: #fff9ef;
@@ -110,7 +110,7 @@ input {
 
 .chat-layout {
   display: grid;
-  grid-template-columns: 270px minmax(0, 1fr) 400px;
+  grid-template-columns: 320px minmax(0, 1fr) 400px;
   gap: 14px;
   min-height: calc(100vh - 40px);
   align-items: stretch;

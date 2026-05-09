@@ -186,6 +186,7 @@ class GraphEngine:
         vector: Sequence[float] | None = None,
         emotional_weight: float = 0.0,
         stability: float = 1.0,
+        confidence: float = 0.5,
     ) -> EdgeRecord:
         source = self.create_or_get_node(source_label)
         target = self.create_or_get_node(target_label)
@@ -209,6 +210,7 @@ class GraphEngine:
                 stability=stability,
                 last_activated=ts,
                 created=existing.created,
+                confidence=max(existing.confidence, confidence),
             )
             return self.store.upsert_edge(merged)
 
@@ -224,6 +226,7 @@ class GraphEngine:
             stability=float(stability),
             last_activated=ts,
             created=ts,
+            confidence=float(confidence),
         )
         return self.store.upsert_edge(edge)
 
@@ -307,6 +310,7 @@ class GraphEngine:
                 stability=edge.stability,
                 last_activated=edge.last_activated,
                 created=edge.created,
+                confidence=edge.confidence,
             )
             self.store.upsert_edge(updated_edge)
             count += 1
@@ -760,6 +764,7 @@ class GraphEngine:
                             stability=edge.stability,
                             last_activated=edge.last_activated,
                             created=edge.created,
+                            confidence=edge.confidence,
                         )
                         self.store.upsert_edge(repointed)
                     self.store.delete_edge(edge.id)
@@ -786,6 +791,7 @@ class GraphEngine:
                             stability=edge.stability,
                             last_activated=edge.last_activated,
                             created=edge.created,
+                            confidence=edge.confidence,
                         )
                         self.store.upsert_edge(repointed)
                     self.store.delete_edge(edge.id)
@@ -850,7 +856,8 @@ class GraphEngine:
                                 id=new_edge_id, source=edge.source, target=surviving_id,
                                 type=edge.type, vector=edge.vector, strength=edge.strength,
                                 emotional_weight=edge.emotional_weight, recall_count=edge.recall_count,
-                                stability=edge.stability, last_activated=edge.last_activated, created=edge.created
+                                stability=edge.stability, last_activated=edge.last_activated, created=edge.created,
+                                confidence=edge.confidence,
                             )
                             self.store.upsert_edge(repointed)
                         self.store.delete_edge(edge.id)
@@ -867,7 +874,8 @@ class GraphEngine:
                                 id=new_edge_id, source=surviving_id, target=edge.target,
                                 type=edge.type, vector=edge.vector, strength=edge.strength,
                                 emotional_weight=edge.emotional_weight, recall_count=edge.recall_count,
-                                stability=edge.stability, last_activated=edge.last_activated, created=edge.created
+                                stability=edge.stability, last_activated=edge.last_activated, created=edge.created,
+                                confidence=edge.confidence,
                             )
                             self.store.upsert_edge(repointed)
                         self.store.delete_edge(edge.id)

@@ -63,6 +63,14 @@ export function graphSummary({ scope, userId, nodeLimit = 80, edgeLimit = 180, m
   return request(`/graph/summary?${params.toString()}`);
 }
 
+export function graphUserSummary({ userId, nodeLimit = 80, edgeLimit = 180 }) {
+  const params = new URLSearchParams({
+    node_limit: String(nodeLimit),
+    edge_limit: String(edgeLimit),
+  });
+  return request(`/graph/user/${encodeURIComponent(userId)}/summary?${params.toString()}`);
+}
+
 export function userImpact(userId, limit = 40) {
   return request(`/users/${encodeURIComponent(userId)}/impact?limit=${limit}`);
 }

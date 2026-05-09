@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import GraphPanel from "@/components/GraphPanel";
 import { getAuthSession, clearAuthSession } from "@/lib/auth";
-import { createSession, loadSessions, normalizeTitle, saveSessions, upsertSession } from "@/lib/chat-storage";
+import { createSession, loadSessions, normalizeTitle, saveSessions, upsertSession, deleteSession } from "@/lib/chat-storage";
 import { health, llmStatus, logout, query, session, queryHistoryEvolution } from "@/lib/api";
 
 function makeMessage(role, text, meta = null) {
@@ -23,6 +23,8 @@ function sleep(ms) {
 
 export default function ChatWorkspace() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlChatId = searchParams.get("chatId");
   const [auth, setAuth] = useState(null);
   const [checking, setChecking] = useState(true);
   const [sessions, setSessions] = useState([]);
@@ -66,9 +68,15 @@ export default function ChatWorkspace() {
           const first = createSession("New chat");
           setSessions([first]);
           setActiveId(first.id);
+          router.replace(`?chatId=${first.id}`);
         } else {
           setSessions(existing);
-          setActiveId(existing[0].id);
+          if (urlChatId && existing.some(s => s.id === urlChatId)) {
+            setActiveId(urlChatId);
+          } else {
+            setActiveId(existing[0].id);
+            router.replace(`?chatId=${existing[0].id}`);
+          }
         }
 
         await refreshSystemMeta();
@@ -223,8 +231,26 @@ export default function ChatWorkspace() {
   function createNewChat() {
     const fresh = createSession("New chat");
     setSessions((prev) => upsertSession(prev, fresh));
-    setActiveId(fresh.id);
+    switchSession(fresh.id);
     setStatus("New chat started");
+  }
+
+  function switchSession(id) {
+    setActiveId(id);
+    router.push(`?chatId=${id}`);
+  }
+
+  function handleDeleteSession(id, event) {
+    event.stopPropagation();
+    const updated = deleteSession(sessions, id);
+    setSessions(updated);
+    if (updated.length === 0) {
+      const first = createSession("New chat");
+      setSessions([first]);
+      switchSession(first.id);
+    } else if (activeId === id) {
+      switchSession(updated[0].id);
+    }
   }
 
   async function doLogout() {
@@ -275,14 +301,25 @@ export default function ChatWorkspace() {
 
         <div className="chat-session-list">
           {sessions.map((item) => (
-            <button
+            <div
               key={item.id}
               className={`session-item ${item.id === activeId ? "active" : ""}`}
-              onClick={() => setActiveId(item.id)}
+              onClick={() => switchSession(item.id)}
+              style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
             >
-              <span>{item.title}</span>
-              <small>{new Date(item.updatedAt).toLocaleString()}</small>
-            </button>
+              <div style={{ display: "grid", gap: "3px", overflow: "hidden" }}>
+                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.title}</span>
+                <small>{new Date(item.updatedAt).toLocaleString()}</small>
+              </div>
+              <button
+                className="mini-button"
+                style={{ marginLeft: "6px", flexShrink: 0, padding: "3px 6px", background: "transparent", border: "1px solid #dcc6a6", color: "#b83232" }}
+                onClick={(e) => handleDeleteSession(item.id, e)}
+                title="Delete Chat"
+              >
+                ✕
+              </button>
+            </div>
           ))}
         </div>
 

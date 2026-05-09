@@ -1,4 +1,4 @@
-﻿const PREFIX = "paragi_chats_v1_";
+const PREFIX = "paragi_chats_v1_";
 
 function keyFor(userId) {
   return `${PREFIX}${userId}`;
@@ -48,4 +48,8 @@ export function upsertSession(sessions, nextSession) {
     items.unshift(nextSession);
   }
   return items.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+
+export function deleteSession(sessions, sessionId) {
+  return sessions.filter(item => item.id !== sessionId);
 }

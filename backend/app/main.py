@@ -81,6 +81,7 @@ class QueryRequest(BaseModel):
     domain: str = Field(default="auto", min_length=1, max_length=32)
     max_hops: int = Field(default=7, ge=1, le=12)
     max_paths: int = Field(default=64, ge=1, le=512)
+    debug: bool = Field(default=False)
 
 
 class UserRegisterRequest(BaseModel):
@@ -601,6 +602,101 @@ def graph_summary(
     }
 
 
+@app.get("/graph/user/{user_id}/summary")
+def graph_user_summary(
+    user_id: str,
+    request: Request,
+    node_limit: int = 50,
+    edge_limit: int = 120,
+) -> dict:
+    safe_user_id = sanitize_user_id(user_id)
+    safe_node_limit = max(1, min(500, int(node_limit)))
+    safe_edge_limit = max(1, min(2000, int(edge_limit)))
+
+    # Fetch user's query history to find their touched node paths
+    history = get_conversation_store(request).by_user(safe_user_id, limit=200)
+    user_node_labels = set()
+    for record in history:
+        # Only count main graph interactions
+        if record.scope == "main" and record.node_path:
+            for label in record.node_path:
+                user_node_labels.add(label)
+
+    graph = get_graph(request)
+    user_nodes = []
+    node_ids = set()
+    
+    # Resolve labels to nodes
+    for label in user_node_labels:
+        node = graph.get_node_by_label(label)
+        if node:
+            user_nodes.append(node)
+            node_ids.add(node.id)
+            if len(user_nodes) >= safe_node_limit:
+                break
+                
+    edges = []
+    # Fetch edges between the user's nodes
+    for node in user_nodes:
+        neighbors = graph.get_neighbors(node.label)
+        for edge in neighbors:
+            if edge.target in node_ids or edge.source in node_ids:
+                edges.append(edge)
+            if len(edges) >= safe_edge_limit:
+                break
+        if len(edges) >= safe_edge_limit:
+            break
+
+    node_map = {n.id: n for n in user_nodes}
+
+    relation_text = {
+        "CAUSES": "causes",
+        "CORRELATES": "is associated with",
+        "IS_A": "is a type of",
+        "TEMPORAL": "usually happens before",
+        "INFERRED": "is likely related to",
+    }
+
+    edge_items = []
+    for edge in edges:
+        source_label = graph.get_node_label(edge.source)
+        target_label = graph.get_node_label(edge.target)
+        relation = relation_text.get(edge.type.value, "is related to")
+        description = (
+            f"{source_label} {relation} {target_label}. "
+            f"Type={edge.type.value}, strength={edge.strength:.3f}, recalls={edge.recall_count}."
+        )
+        edge_items.append(
+            {
+                "id": edge.id,
+                "source": edge.source,
+                "target": edge.target,
+                "type": edge.type.value,
+                "strength": edge.strength,
+                "recall_count": edge.recall_count,
+                "description": description,
+                "source_label": source_label,
+                "target_label": target_label,
+                "relation_text": relation,
+            }
+        )
+
+    return {
+        "scope": "user_contributed",
+        "nodes": [
+            {
+                "id": node.id,
+                "label": node.label,
+                "created": node.created,
+                "last_accessed": node.last_accessed,
+                "access_count": node.access_count,
+            }
+            for node in user_nodes
+        ],
+        "edges": edge_items,
+    }
+
+
 @app.post("/reasoning/paths")
 def reasoning_paths(payload: PathQueryRequest, request: Request) -> dict:
     paths = get_graph(request).find_paths(
@@ -843,7 +939,7 @@ def query(payload: QueryRequest, request: Request) -> dict:
         steps=result.steps,
         backend=result.encoder_backend,
     )
-    return {
+    response_data = {
         "input_text": payload.text,
         "rewritten_text": rewritten_text,
         "rewrite_applied": rewrite.changed,
@@ -896,6 +992,16 @@ def query(payload: QueryRequest, request: Request) -> dict:
         "history_record_id": record.id,
         "stored_at": record.timestamp,
     }
+
+    if payload.debug:
+        response_data["debug_cognition"] = {
+            "query_type": result.query_type,
+            "memory_actions": result.memory_actions,
+            "reasoning_paths": result.reasoning_paths,
+            "steps": result.steps,
+        }
+
+    return response_data
 
 
 @app.get("/encoder/training/recent")

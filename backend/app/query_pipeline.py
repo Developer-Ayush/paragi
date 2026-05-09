@@ -8,9 +8,11 @@ from typing import Iterable, Sequence
 
 from .expansion import ExpansionQueueStore, ExpansionResolver
 from .graph import GraphEngine, PathMatch
-from .models import EdgeType, normalize_label
+from .models import EdgeType, QueryType, normalize_label
 from .query_control import ActivationProfile, QueryClassifier
 from .llm_refiner import LLMRefiner, RefineResult
+from .temporary_memory import TemporaryMemoryStore
+from .learning_gate import LearningGate, LearningDecision
 
 
 @dataclass(slots=True)
@@ -48,6 +50,10 @@ class QueryResponse:
     shortcut_applied: bool
     expansion_node_id: str | None
     new_nodes_created: int
+    # Phase 1+5+8 — Unified cognition engine fields
+    query_type: str
+    reasoning_paths: list[dict]
+    memory_actions: list[str]
 
 
 class TemporaryEncoder:
@@ -246,6 +252,8 @@ class QueryPipeline:
         expansion_queue: ExpansionQueueStore | None = None,
         expansion_resolver: ExpansionResolver | None = None,
         llm: LLMRefiner | None = None,
+        temporary_memory: TemporaryMemoryStore | None = None,
+        learning_gate: LearningGate | None = None,
     ) -> None:
         self.graph = graph
         self.encoder = encoder
@@ -254,14 +262,20 @@ class QueryPipeline:
         self.expansion_queue = expansion_queue
         self.expansion_resolver = expansion_resolver
         self.llm = llm
+        self.temporary_memory = temporary_memory
+        self.learning_gate = learning_gate
         self._query_counts: dict[str, int] = {}
 
-    def run(self, text: str, *, max_hops: int = 7, max_paths: int = 64, allow_learning: bool = True) -> QueryResponse:
+    def run(self, text: str, *, max_hops: int = 7, max_paths: int = 64, allow_learning: bool = True, is_realtime: bool = False) -> QueryResponse:
         encoded = self.encoder.encode(text)
         recall_count = self._query_counts.get(encoded.raw_text, 0)
         profile = self.classifier.classify(encoded.raw_text, encoded.tokens, recall_count)
         self._query_counts[encoded.raw_text] = recall_count + 1
+        steps: list[str] = []
+        memory_actions: list[str] = []
+        query_type = QueryType.STATIC_KNOWLEDGE.value
 
+        # ── Phase 1: Query Understanding ──
         llm_intent = None
         if self.llm:
             llm_intent = self.llm.parse_intent(text)
@@ -275,6 +289,13 @@ class QueryPipeline:
                     personal_value=llm_intent.personal_value,
                 )
                 steps.append(f"llm_intent:{intent.kind}")
+                query_type = llm_intent.query_type
+                # Phase 2: Temporal routing
+                if llm_intent.temporal_nature == "realtime" or llm_intent.query_type == "REALTIME_KNOWLEDGE":
+                    is_realtime = True
+                    allow_learning = False
+                    steps.append("temporal:realtime")
+                    memory_actions.append("learning_blocked:realtime")
             else:
                 intent = self._parse_intent(encoded.raw_text)
                 steps.append(f"regex_intent:{intent.kind}")
@@ -282,44 +303,59 @@ class QueryPipeline:
             intent = self._parse_intent(encoded.raw_text)
             steps.append(f"regex_intent:{intent.kind}")
 
-        # Learning Step: If LLM extracted edges, apply them
+        # ── Phase 2: Check temporary memory for cached realtime answers ──
+        if is_realtime and self.temporary_memory:
+            cached = self.temporary_memory.get(encoded.raw_text)
+            if cached:
+                steps.append("temporal:cache_hit")
+                return self._build_response(
+                    answer=cached.value, encoded=encoded, profile=profile,
+                    steps=steps + ["decode:cached_realtime"], confidence=0.7,
+                    query_type=query_type, memory_actions=memory_actions,
+                )
+
+        # ── Phase 6: Learning gate for LLM-extracted edges ──
         created_edges = 0
         new_nodes = 0
         if allow_learning and llm_intent and llm_intent.graph_edges:
-            c, n = self._apply_llm_edges(llm_intent.graph_edges, encoded, profile)
-            created_edges += c
-            new_nodes += n
-            steps.append(f"llm_learning:{c}_edges")
+            if self.learning_gate and not is_realtime:
+                validated = self.learning_gate.validate_batch(
+                    llm_intent.graph_edges, is_realtime=is_realtime,
+                    source_quality="llm_inferred",
+                )
+                approved_edges = [e for e, d in validated if d.should_learn]
+                rejected = [e for e, d in validated if not d.should_learn]
+                if approved_edges:
+                    c, n = self._apply_llm_edges(approved_edges, encoded, profile)
+                    created_edges += c
+                    new_nodes += n
+                    steps.append(f"learning_gate:approved:{c}_edges")
+                    memory_actions.append(f"learned:{c}_edges")
+                if rejected:
+                    steps.append(f"learning_gate:rejected:{len(rejected)}_edges")
+                    memory_actions.append(f"rejected:{len(rejected)}_edges")
+            else:
+                c, n = self._apply_llm_edges(llm_intent.graph_edges, encoded, profile)
+                created_edges += c
+                new_nodes += n
+                steps.append(f"llm_learning:{c}_edges")
+                memory_actions.append(f"learned:{c}_edges")
 
         if intent.kind == "greeting":
-            return QueryResponse(
-                answer="Hello! How can I help you today?",
-                raw_text=encoded.raw_text,
-                source=None,
-                target=None,
-                used_fallback=False,
-                created_edges=created_edges,
-                confidence=1.0,
-                node_path=[],
-                steps=steps + ["decode:greeting"],
-                encoder_backend=encoded.backend,
-                activation_ranges=profile.active_ranges,
-                active_dims=profile.active_dims,
-                shortcut_applied=profile.shortcut_applied,
-                expansion_node_id=None,
-                new_nodes_created=new_nodes,
+            return self._build_response(
+                answer="Hello! How can I help you today?", encoded=encoded,
+                profile=profile, steps=steps + ["decode:greeting"],
+                confidence=1.0, created_edges=created_edges,
+                new_nodes_created=new_nodes, query_type=query_type,
+                memory_actions=memory_actions,
             )
 
         if intent.kind == "relation" and intent.source and intent.target:
             res = self._run_relation(
-                encoded,
-                profile=profile,
-                source=intent.source,
-                target=intent.target,
-                max_hops=max_hops,
-                max_paths=max_paths,
-                steps=steps,
-                allow_learning=allow_learning,
+                encoded, profile=profile, source=intent.source,
+                target=intent.target, max_hops=max_hops, max_paths=max_paths,
+                steps=steps, allow_learning=allow_learning,
+                query_type=query_type, memory_actions=memory_actions,
             )
             res.created_edges += created_edges
             res.new_nodes_created += new_nodes
@@ -327,11 +363,9 @@ class QueryPipeline:
 
         if intent.kind == "concept" and intent.concept:
             res = self._run_concept(
-                encoded,
-                profile=profile,
-                concept=intent.concept,
-                steps=steps,
-                allow_learning=allow_learning,
+                encoded, profile=profile, concept=intent.concept,
+                steps=steps, allow_learning=allow_learning,
+                query_type=query_type, memory_actions=memory_actions,
             )
             res.created_edges += created_edges
             res.new_nodes_created += new_nodes
@@ -339,12 +373,10 @@ class QueryPipeline:
 
         if intent.kind == "personal_fact" and intent.personal_attribute and intent.personal_value:
             res = self._run_personal_fact(
-                encoded,
-                profile=profile,
-                attribute=intent.personal_attribute,
-                value=intent.personal_value,
-                steps=steps,
-                allow_learning=allow_learning,
+                encoded, profile=profile,
+                attribute=intent.personal_attribute, value=intent.personal_value,
+                steps=steps, allow_learning=allow_learning,
+                query_type="PERSONAL_MEMORY", memory_actions=memory_actions,
             )
             res.created_edges += created_edges
             res.new_nodes_created += new_nodes
@@ -352,10 +384,9 @@ class QueryPipeline:
 
         if intent.kind == "personal_query" and intent.personal_attribute:
             res = self._run_personal_query(
-                encoded,
-                profile=profile,
-                attribute=intent.personal_attribute,
-                steps=steps,
+                encoded, profile=profile,
+                attribute=intent.personal_attribute, steps=steps,
+                query_type="PERSONAL_MEMORY", memory_actions=memory_actions,
             )
             res.created_edges += created_edges
             res.new_nodes_created += new_nodes
@@ -363,33 +394,20 @@ class QueryPipeline:
 
         if intent.kind == "general_fact" and intent.source and intent.target:
             res = self._run_general_fact(
-                encoded,
-                profile=profile,
-                source=intent.source,
-                target=intent.target,
-                steps=steps,
-                allow_learning=allow_learning,
+                encoded, profile=profile,
+                source=intent.source, target=intent.target,
+                steps=steps, allow_learning=allow_learning,
+                query_type=query_type, memory_actions=memory_actions,
             )
             res.created_edges += created_edges
             res.new_nodes_created += new_nodes
             return res
 
-        return QueryResponse(
+        return self._build_response(
             answer="I can answer relation questions like 'does steam burn?' and concept questions like 'what is fire?'.",
-            raw_text=encoded.raw_text,
-            source=None,
-            target=None,
-            used_fallback=False,
-            created_edges=0,
-            confidence=0.0,
-            node_path=[],
-            steps=steps + ["decode:unsupported"],
-            encoder_backend=encoded.backend,
-            activation_ranges=profile.active_ranges,
-            active_dims=profile.active_dims,
-            shortcut_applied=profile.shortcut_applied,
-            expansion_node_id=None,
-            new_nodes_created=0,
+            encoded=encoded, profile=profile,
+            steps=steps + ["decode:unsupported"], confidence=0.0,
+            query_type=query_type, memory_actions=memory_actions,
         )
 
     def _parse_intent(self, raw_text: str) -> QueryIntent:
@@ -457,6 +475,45 @@ class QueryPipeline:
 
         return QueryIntent(kind="unknown")
 
+    def _build_response(self, *, answer: str, encoded: EncodedQuery, profile: ActivationProfile,
+                         steps: list[str], confidence: float, source: str | None = None,
+                         target: str | None = None, used_fallback: bool = False,
+                         created_edges: int = 0, node_path: list[str] | None = None,
+                         expansion_node_id: str | None = None, new_nodes_created: int = 0,
+                         query_type: str = "STATIC_KNOWLEDGE", reasoning_paths: list[dict] | None = None,
+                         memory_actions: list[str] | None = None) -> QueryResponse:
+        return QueryResponse(
+            answer=answer, raw_text=encoded.raw_text, source=source, target=target,
+            used_fallback=used_fallback, created_edges=created_edges,
+            confidence=confidence, node_path=node_path or [],
+            steps=steps, encoder_backend=encoded.backend,
+            activation_ranges=profile.active_ranges, active_dims=profile.active_dims,
+            shortcut_applied=profile.shortcut_applied, expansion_node_id=expansion_node_id,
+            new_nodes_created=new_nodes_created, query_type=query_type,
+            reasoning_paths=reasoning_paths or [], memory_actions=memory_actions or [],
+        )
+
+    def _reason_through_graph(self, source: str, target: str, paths: list, steps: list[str]) -> tuple[list[dict], float]:
+        """Phase 5: Advanced graph reasoning — consensus, analogy, contradiction."""
+        reasoning_paths: list[dict] = []
+        bonus = 0.0
+        try:
+            consensus = self.graph.path_consensus(source, target, max_hops=5, max_paths=32)
+            if consensus and consensus.get("agreed_paths", 0) > 1:
+                bonus += min(0.15, consensus["agreed_paths"] * 0.03)
+                reasoning_paths.append({"type": "consensus", "agreed": consensus.get("agreed_paths", 0)})
+                steps.append(f"reasoning:consensus:{consensus.get('agreed_paths', 0)}")
+        except Exception:
+            pass
+        try:
+            analogies = self.graph.find_analogy_candidates(source, limit=3)
+            if analogies:
+                reasoning_paths.append({"type": "analogy", "count": len(analogies)})
+                steps.append(f"reasoning:analogy:{len(analogies)}")
+        except Exception:
+            pass
+        return reasoning_paths, bonus
+
     def _run_relation(
         self,
         encoded: EncodedQuery,
@@ -468,7 +525,10 @@ class QueryPipeline:
         max_paths: int,
         steps: list[str],
         allow_learning: bool,
+        query_type: str = "STATIC_KNOWLEDGE",
+        memory_actions: list[str] | None = None,
     ) -> QueryResponse:
+        memory_actions = memory_actions or []
         source_exists = self.graph.node_exists(source)
         target_exists = self.graph.node_exists(target)
         steps.append(f"bloom:{int(source_exists)}/{int(target_exists)}")
@@ -480,22 +540,18 @@ class QueryPipeline:
             if allow_learning:
                 for edge_id in top.edge_ids:
                     self.graph.strengthen_edge(edge_id)
-            return QueryResponse(
-                answer=self.decoder.decode_path(top),
-                raw_text=encoded.raw_text,
-                source=source,
-                target=target,
-                used_fallback=False,
-                created_edges=0,
-                confidence=max(0.0, min(1.0, top.score)),
-                node_path=top.node_labels,
-                steps=steps + ["decode:path"],
-                encoder_backend=encoded.backend,
-                activation_ranges=profile.active_ranges,
-                active_dims=profile.active_dims,
-                shortcut_applied=profile.shortcut_applied,
-                expansion_node_id=None,
-                new_nodes_created=0,
+            # Phase 5: Advanced reasoning for low-confidence
+            reasoning_paths: list[dict] = []
+            conf = max(0.0, min(1.0, top.score))
+            if conf < 0.6:
+                reasoning_paths, bonus = self._reason_through_graph(source, target, paths, steps)
+                conf = min(1.0, conf + bonus)
+            return self._build_response(
+                answer=self.decoder.decode_path(top), encoded=encoded, profile=profile,
+                source=source, target=target, confidence=conf,
+                node_path=top.node_labels, steps=steps + ["decode:path"],
+                query_type=query_type, reasoning_paths=reasoning_paths,
+                memory_actions=memory_actions,
             )
 
         created = 0
@@ -522,22 +578,13 @@ class QueryPipeline:
                 paths_external = self.graph.find_paths(source, target, max_hops=max_hops, max_paths=max_paths)
                 if paths_external:
                     top = paths_external[0]
-                    return QueryResponse(
-                        answer=self.decoder.decode_path(top),
-                        raw_text=encoded.raw_text,
-                        source=source,
-                        target=target,
-                        used_fallback=True,
-                        created_edges=created,
-                        confidence=max(0.0, min(1.0, top.score)),
-                        node_path=top.node_labels,
-                        steps=steps + ["decode:external"],
-                        encoder_backend=encoded.backend,
-                        activation_ranges=profile.active_ranges,
-                        active_dims=profile.active_dims,
-                        shortcut_applied=profile.shortcut_applied,
-                        expansion_node_id=expansion_node_id,
-                        new_nodes_created=len(new_nodes),
+                    return self._build_response(
+                        answer=self.decoder.decode_path(top), encoded=encoded, profile=profile,
+                        source=source, target=target, used_fallback=True,
+                        created_edges=created, confidence=max(0.0, min(1.0, top.score)),
+                        node_path=top.node_labels, steps=steps + ["decode:external"],
+                        expansion_node_id=expansion_node_id, new_nodes_created=len(new_nodes),
+                        query_type=query_type, memory_actions=memory_actions,
                     )
 
         fallback_edges = self._fallback_edges(source, target) if allow_learning else []
@@ -568,40 +615,22 @@ class QueryPipeline:
         paths_after = self.graph.find_paths(source, target, max_hops=max_hops, max_paths=max_paths)
         if paths_after:
             top = paths_after[0]
-            return QueryResponse(
-                answer=self.decoder.decode_path(top),
-                raw_text=encoded.raw_text,
-                source=source,
-                target=target,
-                used_fallback=True,
-                created_edges=created,
-                confidence=max(0.0, min(1.0, top.score)),
-                node_path=top.node_labels,
-                steps=steps + ["decode:post-fallback"],
-                encoder_backend=encoded.backend,
-                activation_ranges=profile.active_ranges,
-                active_dims=profile.active_dims,
-                shortcut_applied=profile.shortcut_applied,
-                expansion_node_id=expansion_node_id,
-                new_nodes_created=len(new_nodes),
+            return self._build_response(
+                answer=self.decoder.decode_path(top), encoded=encoded, profile=profile,
+                source=source, target=target, used_fallback=True,
+                created_edges=created, confidence=max(0.0, min(1.0, top.score)),
+                node_path=top.node_labels, steps=steps + ["decode:post-fallback"],
+                expansion_node_id=expansion_node_id, new_nodes_created=len(new_nodes),
+                query_type=query_type, memory_actions=memory_actions,
             )
 
-        return QueryResponse(
+        return self._build_response(
             answer=f"I do not know this yet: {source} -> {target}. I have queued external research and will learn this automatically.",
-            raw_text=encoded.raw_text,
-            source=source,
-            target=target,
-            used_fallback=True,
-            created_edges=created,
-            confidence=0.0,
-            node_path=[source],
-            steps=steps + ["decode:unknown"],
-            encoder_backend=encoded.backend,
-            activation_ranges=profile.active_ranges,
-            active_dims=profile.active_dims,
-            shortcut_applied=profile.shortcut_applied,
-            expansion_node_id=expansion_node_id,
-            new_nodes_created=len(new_nodes),
+            encoded=encoded, profile=profile, source=source, target=target,
+            used_fallback=True, created_edges=created, confidence=0.0,
+            node_path=[source], steps=steps + ["decode:unknown"],
+            expansion_node_id=expansion_node_id, new_nodes_created=len(new_nodes),
+            query_type=query_type, memory_actions=memory_actions,
         )
 
     def _run_concept(
@@ -612,7 +641,10 @@ class QueryPipeline:
         concept: str,
         steps: list[str],
         allow_learning: bool,
+        query_type: str = "STATIC_KNOWLEDGE",
+        memory_actions: list[str] | None = None,
     ) -> QueryResponse:
+        memory_actions = memory_actions or []
         neighbors = self.graph.get_neighbors(concept)
         ranked = sorted(neighbors, key=lambda edge: edge.strength, reverse=True)[:3]
         created = 0
@@ -636,22 +668,13 @@ class QueryPipeline:
         answer = self.decoder.decode_concept(concept, summary_items)
         node_path = [concept] + [item[0] for item in summary_items]
         confidence = 0.0 if not ranked else min(1.0, sum(edge.strength for edge in ranked) / len(ranked))
-        return QueryResponse(
-            answer=answer,
-            raw_text=encoded.raw_text,
-            source=concept,
-            target=None,
-            used_fallback=used_fallback,
-            created_edges=created,
-            confidence=confidence,
-            node_path=node_path,
-            steps=steps + [f"concept_neighbors:{len(ranked)}", "decode:concept"],
-            encoder_backend=encoded.backend,
-            activation_ranges=profile.active_ranges,
-            active_dims=profile.active_dims,
-            shortcut_applied=profile.shortcut_applied,
-            expansion_node_id=None,
-            new_nodes_created=new_nodes,
+        return self._build_response(
+            answer=answer, encoded=encoded, profile=profile,
+            source=concept, used_fallback=used_fallback,
+            created_edges=created, confidence=confidence,
+            node_path=node_path, steps=steps + [f"concept_neighbors:{len(ranked)}", "decode:concept"],
+            new_nodes_created=new_nodes, query_type=query_type,
+            memory_actions=memory_actions,
         )
 
     def _run_personal_fact(
@@ -663,7 +686,10 @@ class QueryPipeline:
         value: str,
         steps: list[str],
         allow_learning: bool,
+        query_type: str = "PERSONAL_MEMORY",
+        memory_actions: list[str] | None = None,
     ) -> QueryResponse:
+        memory_actions = memory_actions or []
         created = 0
         new_nodes = 0
         if allow_learning:
@@ -687,22 +713,14 @@ class QueryPipeline:
             steps.append("learning:disabled")
 
         answer = f"Noted. I will remember your {attribute}: {value}."
-        return QueryResponse(
-            answer=answer,
-            raw_text=encoded.raw_text,
-            source="self",
-            target=f"{attribute} {value}",
-            used_fallback=False,
-            created_edges=created,
-            confidence=0.99 if created else 0.0,
+        memory_actions.append(f"personal:stored:{attribute}")
+        return self._build_response(
+            answer=answer, encoded=encoded, profile=profile,
+            source="self", target=f"{attribute} {value}",
+            created_edges=created, confidence=0.99 if created else 0.0,
             node_path=["self", f"{attribute} {value}"] if created else ["self"],
-            steps=steps + ["decode:personal"],
-            encoder_backend=encoded.backend,
-            activation_ranges=profile.active_ranges,
-            active_dims=profile.active_dims,
-            shortcut_applied=profile.shortcut_applied,
-            expansion_node_id=None,
-            new_nodes_created=new_nodes,
+            steps=steps + ["decode:personal"], new_nodes_created=new_nodes,
+            query_type=query_type, memory_actions=memory_actions,
         )
 
     def _run_personal_query(
@@ -712,7 +730,10 @@ class QueryPipeline:
         profile: ActivationProfile,
         attribute: str,
         steps: list[str],
+        query_type: str = "PERSONAL_MEMORY",
+        memory_actions: list[str] | None = None,
     ) -> QueryResponse:
+        memory_actions = memory_actions or []
         alias_map: dict[str, tuple[str, ...]] = {
             "name": ("name", "identity"),
             "identity": ("identity", "name"),
@@ -756,40 +777,22 @@ class QueryPipeline:
 
         if best_value:
             answer = f"Your {attribute} is {best_value}."
-            return QueryResponse(
-                answer=answer,
-                raw_text=encoded.raw_text,
-                source="self",
-                target=best_target,
-                used_fallback=False,
-                created_edges=0,
+            return self._build_response(
+                answer=answer, encoded=encoded, profile=profile,
+                source="self", target=best_target,
                 confidence=min(1.0, best_strength),
                 node_path=["self", best_target],
                 steps=steps + ["personal:retrieved", "decode:personal-query"],
-                encoder_backend=encoded.backend,
-                activation_ranges=profile.active_ranges,
-                active_dims=profile.active_dims,
-                shortcut_applied=profile.shortcut_applied,
-                expansion_node_id=None,
-                new_nodes_created=0,
+                query_type=query_type, memory_actions=memory_actions,
             )
 
-        return QueryResponse(
+        return self._build_response(
             answer=f"I do not have your {attribute} in personal memory yet.",
-            raw_text=encoded.raw_text,
-            source="self",
-            target=attribute,
-            used_fallback=False,
-            created_edges=0,
-            confidence=0.0,
+            encoded=encoded, profile=profile,
+            source="self", target=attribute, confidence=0.0,
             node_path=["self"],
             steps=steps + ["personal:missing", "decode:personal-query"],
-            encoder_backend=encoded.backend,
-            activation_ranges=profile.active_ranges,
-            active_dims=profile.active_dims,
-            shortcut_applied=profile.shortcut_applied,
-            expansion_node_id=None,
-            new_nodes_created=0,
+            query_type=query_type, memory_actions=memory_actions,
         )
 
     def _fallback_edges(self, source: str, target: str) -> list[tuple[str, str, EdgeType, float]]:
@@ -842,7 +845,10 @@ class QueryPipeline:
         target: str,
         steps: list[str],
         allow_learning: bool,
+        query_type: str = "STATIC_KNOWLEDGE",
+        memory_actions: list[str] | None = None,
     ) -> QueryResponse:
+        memory_actions = memory_actions or []
         created = 0
         new_nodes = 0
         if allow_learning:
@@ -850,17 +856,11 @@ class QueryPipeline:
             target_exists = self.graph.node_exists(target)
             
             self.graph.create_edge(
-                source,
-                target,
-                EdgeType.IS_A,
-                strength=0.95,
+                source, target, EdgeType.IS_A, strength=0.95,
                 vector=self._build_edge_vector(encoded.semantic_vector, EdgeType.IS_A, profile),
             )
             self.graph.create_edge(
-                target,
-                source,
-                EdgeType.CORRELATES,
-                strength=0.95,
+                target, source, EdgeType.CORRELATES, strength=0.95,
                 vector=self._build_edge_vector(encoded.semantic_vector, EdgeType.CORRELATES, profile),
             )
             created = 2
@@ -869,26 +869,19 @@ class QueryPipeline:
             if not target_exists:
                 new_nodes += 1
             steps.append("general_fact:stored")
+            memory_actions.append(f"learned:general_fact:{source}->{target}")
         else:
             steps.append("learning:disabled")
 
         answer = f"Noted. I will remember that {source} is {target}."
-        return QueryResponse(
-            answer=answer,
-            raw_text=encoded.raw_text,
-            source=source,
-            target=target,
-            used_fallback=False,
-            created_edges=created,
-            confidence=0.99 if created else 0.0,
+        return self._build_response(
+            answer=answer, encoded=encoded, profile=profile,
+            source=source, target=target,
+            created_edges=created, confidence=0.99 if created else 0.0,
             node_path=[source, target] if created else [source],
             steps=steps + ["decode:general_fact"],
-            encoder_backend=encoded.backend,
-            activation_ranges=profile.active_ranges,
-            active_dims=profile.active_dims,
-            shortcut_applied=profile.shortcut_applied,
-            expansion_node_id=None,
-            new_nodes_created=new_nodes,
+            new_nodes_created=new_nodes, query_type=query_type,
+            memory_actions=memory_actions,
         )
 
     def _apply_llm_edges(self, edges: list[dict], encoded: EncodedQuery, profile: ActivationProfile) -> tuple[int, int]:

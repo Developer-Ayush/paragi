@@ -1,5 +1,10 @@
-﻿import ChatWorkspace from "@/components/ChatWorkspace";
+import { Suspense } from "react";
+import ChatWorkspace from "@/components/ChatWorkspace";
 
 export default function ChatPage() {
-  return <ChatWorkspace />;
+  return (
+    <Suspense fallback={<main className="page center">Loading...</main>}>
+      <ChatWorkspace />
+    </Suspense>
+  );
 }

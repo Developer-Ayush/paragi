@@ -124,6 +124,17 @@ class LLMRefiner:
         raw_llm: str
         error: str | None
         duration_ms: float | None
+        # Phase 1 — full query analysis
+        query_type: str  # QueryType value
+        emotional_tone: str  # neutral, positive, negative, curious, frustrated
+        temporal_nature: str  # static, realtime, episodic
+        requires_web: bool
+        requires_graph: bool
+        requires_personal_graph: bool
+        requires_reasoning: bool
+        requires_fallback: bool
+        entities: list[str]
+        learnability: float  # 0.0-1.0 how learnable is the stated fact
 
     def parse_intent(self, question: str) -> "LLMRefiner.ParsedIntent":
         """Step 1: Ask the LLM to understand the user query and extract structured intent."""
@@ -132,6 +143,10 @@ class LLMRefiner:
             kind="unknown", source=None, target=None, concept=None,
             personal_attribute=None, personal_value=None,
             graph_edges=[], raw_llm="", error=None, duration_ms=None,
+            query_type="STATIC_KNOWLEDGE", emotional_tone="neutral",
+            temporal_nature="static", requires_web=False, requires_graph=True,
+            requires_personal_graph=False, requires_reasoning=False,
+            requires_fallback=False, entities=[], learnability=0.0,
         )
         if self.backend not in ("ollama", "groq") or not query:
             empty.error = "llm_disabled" if self.backend not in ("ollama", "groq") else "empty"
@@ -217,7 +232,13 @@ class LLMRefiner:
             '  "concept": "main topic or null",\n'
             '  "personal_attribute": "name/location/preference or null",\n'
             '  "personal_value": "the value or null",\n'
-            '  "graph_edges": [{"source": "entity1", "target": "entity2", "relation": "IS_A|CAUSES|CORRELATES|TEMPORAL"}]\n'
+            '  "graph_edges": [{"source": "entity1", "target": "entity2", "relation": "IS_A|CAUSES|CORRELATES|TEMPORAL"}],\n'
+            '  "query_type": "STATIC_KNOWLEDGE|REALTIME_KNOWLEDGE|PERSONAL_MEMORY|CAUSAL_REASONING|ANALOGICAL_REASONING|EXPLORATORY_REASONING",\n'
+            '  "emotional_tone": "neutral|positive|negative|curious|frustrated",\n'
+            '  "temporal_nature": "static|realtime|episodic",\n'
+            '  "requires_web": false,\n'
+            '  "entities": ["entity1", "entity2"],\n'
+            '  "learnability": 0.8\n'
             '}\n\n'
             "Rules:\n"
             '- "greeting": for hi, hello, hey, etc.\n'
@@ -228,7 +249,10 @@ class LLMRefiner:
             '- "general_fact": for "X is Y", "modi is the pm of india" (user teaching a fact)\n'
             '- For concept queries, set "concept" to the main subject\n'
             '- For general_fact, extract graph_edges the system should learn\n'
-            '- graph_edges should capture ALL factual relationships stated or implied\n\n'
+            '- graph_edges should capture ALL factual relationships stated or implied\n'
+            '- query_type REALTIME_KNOWLEDGE for news, weather, stocks, live events, current leaders\n'
+            '- learnability: 0.0 for questions, 1.0 for definitive facts, 0.5 for opinions\n'
+            '- entities: list ALL named entities mentioned\n\n'
             f"User message: {question}\n"
         )
 
@@ -239,6 +263,17 @@ class LLMRefiner:
         path_text = " -> ".join(node_path) if node_path else "-"
         has_answer = bool(graph_answer and graph_answer.strip() and confidence > 0.01)
         if has_answer:
+            uncertainty_note = ""
+            if confidence < 0.3:
+                uncertainty_note = (
+                    "IMPORTANT: Confidence is LOW. Express genuine uncertainty. "
+                    "Use hedging language like 'it seems', 'possibly', 'based on limited information'. "
+                    "Do NOT present this as certain fact.\n"
+                )
+            elif confidence < 0.6:
+                uncertainty_note = (
+                    "Note: Confidence is moderate. You may express mild uncertainty where appropriate.\n"
+                )
             return (
                 "Rewrite the following answer into clear, natural, human-readable language.\n"
                 "Rules:\n"
@@ -246,7 +281,9 @@ class LLMRefiner:
                 "2) Do NOT invent extra facts beyond what's given.\n"
                 "3) Keep it concise (1-4 sentences).\n"
                 "4) Never mention graphs, nodes, paths, confidence, or internal systems.\n"
-                "5) Return plain text only.\n\n"
+                "5) Return plain text only.\n"
+                "6) If the information suggests a causal chain, preserve that structure.\n"
+                f"{uncertainty_note}\n"
                 f"Question: {question}\n"
                 f"Available information: {graph_answer}\n"
                 f"Knowledge path: {path_text}\n"
@@ -303,54 +340,16 @@ class LLMRefiner:
             raw_llm=raw,
             error=None,
             duration_ms=duration_ms,
-        )
-        query = (question or "").strip()
-        if self.backend not in ("ollama", "groq"):
-            return RefineResult(
-                answer="",
-                used=False,
-                backend=self.backend,
-                model=self.model,
-                error="llm_disabled",
-                total_duration_ms=None,
-            )
-        if not query:
-            return RefineResult(
-                answer="",
-                used=False,
-                backend=self.backend,
-                model=self.model,
-                error="empty_question",
-                total_duration_ms=None,
-            )
-        prompt = self._build_general_prompt(question=query, domain=domain)
-        text, duration_ms, error = self._generate(prompt, temperature=max(0.1, self.temperature), max_tokens=min(320, max(96, self.max_tokens)))
-        if error is not None:
-            return RefineResult(
-                answer="",
-                used=False,
-                backend=self.backend,
-                model=self.model,
-                error=error,
-                total_duration_ms=duration_ms,
-            )
-        out = (text or "").strip()
-        if not out:
-            return RefineResult(
-                answer="",
-                used=False,
-                backend=self.backend,
-                model=self.model,
-                error="empty_llm_output",
-                total_duration_ms=duration_ms,
-            )
-        return RefineResult(
-            answer=out,
-            used=True,
-            backend=self.backend,
-            model=self.model,
-            error=None,
-            total_duration_ms=duration_ms,
+            query_type=str(data.get("query_type", "STATIC_KNOWLEDGE")).strip().upper(),
+            emotional_tone=str(data.get("emotional_tone", "neutral")).strip().lower(),
+            temporal_nature=str(data.get("temporal_nature", "static")).strip().lower(),
+            requires_web=bool(data.get("requires_web", False)),
+            requires_graph=True,
+            requires_personal_graph=kind in ("personal_fact", "personal_query"),
+            requires_reasoning=kind in ("relation", "concept"),
+            requires_fallback=False,
+            entities=[str(e).strip().lower() for e in data.get("entities", []) if isinstance(e, str)],
+            learnability=float(data.get("learnability", 0.0)),
         )
 
     def status(self) -> dict[str, Any]:
