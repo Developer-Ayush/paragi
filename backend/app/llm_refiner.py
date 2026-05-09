@@ -351,7 +351,7 @@ class LLMRefiner:
         self, prompt: str, *, temperature: float, max_tokens: int
     ) -> tuple[str, float | None, str | None]:
         endpoint = "https://openrouter.ai/api/v1/chat/completions"
-        model = self.model if self.model and self.model != "google/gemma-4-31b-it:free"
+        model = self.model if self.model and self.model != "google/gemma-4-31b-it:free" else "google/gemma-4-26b-a4b-it:free"
         body = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
