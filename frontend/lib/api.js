@@ -4,6 +4,7 @@ let API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase;
 if (API_BASE.includes("onrender.com") && API_BASE.startsWith("http://")) {
   API_BASE = API_BASE.replace("http://", "https://");
 }
+console.log("DEBUG: Paragi API_BASE is set to:", API_BASE);
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
