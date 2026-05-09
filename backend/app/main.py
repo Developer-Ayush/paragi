@@ -248,6 +248,17 @@ app.add_middleware(
 
 app.include_router(translator_routes.router, prefix="/internal")
 
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    response = await call_next(request)
+    origin = request.headers.get("Origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS, PUT, DELETE"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
 
 def get_graph(request: Request) -> GraphEngine:
     if not getattr(request.app.state, "initialized", False):
@@ -1165,7 +1176,13 @@ def query_history_evolution(record_id: str, request: Request, max_hops: int = 7,
         if llm_policy == "always":
             if llm_prefers_direct:
                 llm_mode = "direct"
-                llm_result = llm.answer_general(question=rewrite.rewritten_text, domain=record.domain)
+                llm_result = llm.format_response(
+                    question=rewrite.rewritten_text,
+                    graph_answer=replay.answer,
+                    node_path=replay.node_path,
+                    confidence=replay.confidence,
+                    intent_kind=intent_kind,
+                )
             else:
                 llm_mode = "refine"
                 llm_result = llm.refine_answer(
@@ -1180,11 +1197,23 @@ def query_history_evolution(record_id: str, request: Request, max_hops: int = 7,
         elif llm_policy == "unknown_only":
             if llm_prefers_direct:
                 llm_mode = "direct"
-                llm_result = llm.answer_general(question=rewrite.rewritten_text, domain=record.domain)
+                llm_result = llm.format_response(
+                    question=rewrite.rewritten_text,
+                    graph_answer=replay.answer,
+                    node_path=replay.node_path,
+                    confidence=replay.confidence,
+                    intent_kind=intent_kind,
+                )
         else:
             if llm_prefers_direct:
                 llm_mode = "direct"
-                llm_result = llm.answer_general(question=rewrite.rewritten_text, domain=record.domain)
+                llm_result = llm.format_response(
+                    question=rewrite.rewritten_text,
+                    graph_answer=replay.answer,
+                    node_path=replay.node_path,
+                    confidence=replay.confidence,
+                    intent_kind=intent_kind,
+                )
             elif replay.used_fallback or replay.confidence < 0.45:
                 llm_mode = "refine"
                 llm_result = llm.refine_answer(
