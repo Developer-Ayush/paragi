@@ -759,7 +759,7 @@ def query(payload: QueryRequest, request: Request) -> dict:
                 total_duration_ms=None,
             )
 
-    if llm_mode != "web" and llm.backend == "ollama":
+    if llm_mode != "web" and llm.backend in ("ollama", "groq"):
         if llm_policy == "always":
             if llm_prefers_direct:
                 llm_mode = "direct"
@@ -1092,7 +1092,7 @@ def query_history_evolution(record_id: str, request: Request, max_hops: int = 7,
         total_duration_ms=None,
     )
 
-    if llm.backend == "ollama":
+    if llm.backend in ("ollama", "groq"):
         if llm_policy == "always":
             if llm_prefers_direct:
                 llm_mode = "direct"
