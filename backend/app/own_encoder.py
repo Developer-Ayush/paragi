@@ -40,6 +40,28 @@ class OwnEncoder:
         "technology": 638,
     }
 
+    # Keyword sets for cognitive factors from §3.2
+    BIOLOGICAL_KEYWORDS = {
+        "sleep", "hunger", "thirst", "tired", "pain", "breath", "body", "muscle", "health",
+        "energy", "rest", "vital", "visceral", "organ", "heart", "brain", "nerve"
+    }
+    PSYCHOLOGICAL_KEYWORDS = {
+        "happy", "sad", "fear", "anxiety", "mood", "think", "feel", "emotion", "mind",
+        "memory", "will", "drive", "ego", "self", "desire", "mental", "focus"
+    }
+    SOCIAL_KEYWORDS = {
+        "friend", "group", "family", "society", "rule", "law", "community", "other",
+        "people", "person", "culture", "norm", "status", "role", "connect", "social"
+    }
+    SITUATIONAL_KEYWORDS = {
+        "now", "here", "context", "state", "mode", "event", "task", "goal", "current",
+        "environment", "situation", "incident", "trigger", "immediate", "urgent"
+    }
+    INTELLECTUAL_KEYWORDS = {
+        "logic", "reason", "fact", "learn", "study", "idea", "concept", "abstract",
+        "knowledge", "system", "theory", "method", "complex", "simple", "skill"
+    }
+
     def __init__(self, *, model_path: Path | None = None) -> None:
         self._backend = "own"
         self.model_path = model_path
@@ -51,6 +73,7 @@ class OwnEncoder:
         normalized = normalize_label(text)
         tokens = self.token_re.findall(normalized)
         vec = self._hash_embed_700(tokens or [normalized])
+        self._apply_cognitive_factors(vec, tokens)
         self._apply_domain_priors(vec, tokens)
         self._apply_learned_weights(vec, tokens)
         return OwnEncodedQuery(
@@ -89,6 +112,27 @@ class OwnEncoder:
                 sign = 1.0 if digest[(slot + 13) % 32] % 2 == 0 else -1.0
                 vec[mapped_index] += sign
         return vec
+
+    def _apply_cognitive_factors(self, vec: list[float], tokens: list[str]) -> None:
+        if not tokens:
+            return
+        token_set = set(tokens)
+
+        # Mapping keyword sets to cognitive ranges
+        mappings = [
+            (self.BIOLOGICAL_KEYWORDS, self.RANGE_VISCERAL_STATES),  # Focus on visceral within biological
+            (self.PSYCHOLOGICAL_KEYWORDS, self.RANGE_EMOTIONAL_RANGE),
+            (self.SOCIAL_KEYWORDS, (280, 379)),  # Social range defined in §3.2
+            (self.SITUATIONAL_KEYWORDS, (380, 479)),  # Situational
+            (self.INTELLECTUAL_KEYWORDS, (480, 579)),  # Intellectual
+        ]
+
+        for keywords, (start, end) in mappings:
+            hits = len(token_set.intersection(keywords))
+            if hits > 0:
+                # Distribute signal across the range
+                mid = (start + end) // 2
+                vec[mid] += min(1.2, 0.25 * hits)
 
     def _apply_domain_priors(self, vec: list[float], tokens: list[str]) -> None:
         if not tokens:

@@ -75,3 +75,7 @@ export function health() {
 export function llmStatus() {
   return request("/llm/status");
 }
+
+export function queryHistoryEvolution(recordId) {
+  return request(`/query/history/${encodeURIComponent(recordId)}/evolution`);
+}
