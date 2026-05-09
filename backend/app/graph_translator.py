@@ -27,8 +27,13 @@ class GraphTranslator:
         self.nlp = None
         try:
             self.nlp = spacy.load("en_core_web_sm")
-        except Exception as e:
-            logger.warning(f"Failed to load spaCy: {e}")
+        except Exception:
+            try:
+                from spacy.cli import download
+                download("en_core_web_sm")
+                self.nlp = spacy.load("en_core_web_sm")
+            except Exception as e:
+                logger.warning(f"Failed to load or download spaCy model: {e}")
 
         self.valid_relations = [e.value for e in EdgeType]
 

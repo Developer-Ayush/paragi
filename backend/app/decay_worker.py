@@ -26,11 +26,19 @@ class DecayWorker:
         # Every N cycles, we also run semantic deduplication
         dedup_cycle_interval = 10
         cycle_count = 0
+
+        # Lazy load encoder to avoid memory overhead if not needed immediately
+        encoder = None
+
         while not self._stop_event.wait(self.interval_seconds):
             self.last_decayed_edges = self.graph.decay_all_edges()
             cycle_count += 1
             if cycle_count >= dedup_cycle_interval:
-                self.graph.deduplicate_graph()
+                if encoder is None:
+                    from .own_encoder import OwnEncoder
+                    encoder = OwnEncoder()
+
+                self.graph.deduplicate_graph(encoder=encoder)
                 self.graph.prune_edges()
                 cycle_count = 0
 

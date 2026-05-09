@@ -223,9 +223,35 @@ class ParagiCrawler:
 
             res = self.translator.encode(chunk)
             if res and res.get("confidence", 0) > 0.4:
+                source = res["source"]
+                target = res["target"]
+                rel_type = EdgeType(res["relation"])
+                confidence = res["confidence"]
+
+                # Add contradiction detection at ingestion
+                # If we're saying A causes B, check if there's evidence A causes NOT B
+                # For now, we check if there's a strong path to another target from the same source
+                # that might contradict this one. The paper specifically mentioned contradiction
+                # detection at ingestion.
+
+                # Simple check: if source and target already have a contradicting edge or path
+                # We use contradiction_vote if we can identify a negative target.
+                # Since we don't have a 'negative' target from one chunk, we can at least check
+                # if the new edge contradicts existing consensus.
+
+                # If relation is CAUSES, check if there are many paths already to something else
+                # that would make this cause unlikely.
+
+                # For now, let's implement the 'flagging' part.
+                existing_edge = self.graph.get_edge(source, target)
+                if existing_edge and existing_edge.strength > 0.7 and rel_type != existing_edge.type:
+                    logger.warning(f"Ingestion contradiction: {source} -> {target} is {existing_edge.type} (strength {existing_edge.strength:.2f}), crawler says {rel_type}")
+                    # Weaken the new ingestion strength
+                    confidence *= 0.5
+
                 self.graph.create_edge(
-                    source_label=res["source"],
-                    target_label=res["target"],
-                    edge_type=EdgeType(res["relation"]),
-                    strength=res["confidence"]
+                    source_label=source,
+                    target_label=target,
+                    edge_type=rel_type,
+                    strength=confidence
                 )
