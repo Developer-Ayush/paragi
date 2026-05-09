@@ -150,21 +150,6 @@ def _initialize_state(app: FastAPI, *, start_workers: bool) -> None:
     classifier = QueryClassifier()
     translator = GraphTranslator(model_name="phi3", data_dir=settings.data_dir)
     crawler = ParagiCrawler(graph, translator)
-    pipeline = QueryPipeline(
-        graph,
-        encoder,
-        decoder,
-        classifier=classifier,
-        expansion_queue=expansion_queue,
-        expansion_resolver=expansion_resolver,
-    )
-    history = ConversationStore(settings.query_history_path)
-    encoder_training = EncoderTrainingStore(settings.encoder_training_path)
-    query_rewriter = QueryRewriter(settings.query_rewriter_path)
-    user_state = UserStateStore(settings.user_state_path)
-    auth_store = AuthStore(settings.auth_users_path, settings.auth_sessions_path)
-    personal_graphs = PersonalGraphManager(settings)
-    metrics_store = MetricsStore(settings.metrics_path)
     llm_refiner = LLMRefiner(
         backend=settings.llm_backend,
         model=settings.llm_model,
@@ -176,6 +161,23 @@ def _initialize_state(app: FastAPI, *, start_workers: bool) -> None:
         keep_alive=settings.llm_keep_alive,
         api_key=settings.llm_api_key,
     )
+    pipeline = QueryPipeline(
+        graph,
+        encoder,
+        decoder,
+        classifier=classifier,
+        expansion_queue=expansion_queue,
+        expansion_resolver=expansion_resolver,
+        llm=llm_refiner,
+    )
+    history = ConversationStore(settings.query_history_path)
+    encoder_training = EncoderTrainingStore(settings.encoder_training_path)
+    query_rewriter = QueryRewriter(settings.query_rewriter_path)
+    user_state = UserStateStore(settings.user_state_path)
+    auth_store = AuthStore(settings.auth_users_path, settings.auth_sessions_path)
+    personal_graphs = PersonalGraphManager(settings)
+    metrics_store = MetricsStore(settings.metrics_path)
+    app.state.llm_refiner = llm_refiner
 
     app.state.settings = settings
     app.state.graph = graph
@@ -310,8 +312,9 @@ def get_crawler(request: Request) -> ParagiCrawler:
 
 def get_pipeline_for_scope(request: Request, *, scope: str, user_id: str) -> QueryPipeline:
     safe_user_id = sanitize_user_id(user_id)
+    llm = get_llm_refiner(request)
     if scope == "personal":
-        return get_personal_graphs(request).get_pipeline(safe_user_id)
+        return get_personal_graphs(request).get_pipeline(safe_user_id, llm=llm)
     return get_pipeline(request)
 
 
@@ -731,101 +734,56 @@ def query(payload: QueryRequest, request: Request) -> dict:
     intent_kind = intent_step.split(":", 1)[1] if ":" in intent_step else "unknown"
 
     llm = get_llm_refiner(request)
-    llm_policy = request.app.state.settings.llm_policy
     llm_mode = "skip"
-    llm_prefers_direct = mode_decision.prefer_direct_llm or intent_kind == "unknown" or (
-        result.confidence < 0.08 and len(result.node_path) <= 1
-    )
-    llm_result = RefineResult(
-        answer=result.answer,
-        used=False,
-        backend=llm.backend,
-        model=llm.model,
-        error=None,
-        total_duration_ms=None,
-    )
+    
+    # Fast-Path: If confidence is very high, we can skip the second LLM call
+    # But to satisfy the "always pass through LLM" request while staying fast,
+    # we only skip if confidence > 0.95 and we have a valid answer.
+    if result.confidence > 0.95 and result.answer:
+        final_answer = result.answer
+        llm_mode = "fast_bypass"
+        llm_result = RefineResult(
+            answer=final_answer,
+            used=False,
+            backend="fast_path",
+            model="internal",
+            error=None,
+            total_duration_ms=0,
+        )
+    else:
+        # Step 2: Format response through LLM
+        llm_mode = "llm_format"
+        llm_result = llm.format_response(
+            question=rewritten_text,
+            graph_answer=result.answer,
+            node_path=result.node_path,
+            confidence=result.confidence,
+            intent_kind=intent_kind,
+        )
+        final_answer = llm_result.answer
 
-    if mode_decision.mode == "realtime":
-        realtime = fetch_realtime_answer(rewritten_text)
-        if realtime is not None:
-            answer_text, source_name = realtime
-            llm_mode = "web"
-            llm_result = RefineResult(
-                answer=answer_text,
-                used=False,
-                backend="web",
-                model=source_name,
-                error=None,
-                total_duration_ms=None,
-            )
+    # Secondary Fallbacks: If LLM failed or produced nothing, try Wikipedia/Troubleshooting
+    if not final_answer or llm_result.error:
+        if mode_decision.mode == "realtime":
+            realtime = fetch_realtime_answer(rewritten_text)
+            if realtime:
+                final_answer, source_name = realtime
+                llm_mode = "web_fallback"
 
-    if llm_mode != "web" and llm.backend in ("ollama", "groq"):
-        if llm_policy == "always":
-            if llm_prefers_direct:
-                llm_mode = "direct"
-                llm_result = llm.answer_general(question=rewritten_text, domain=inferred_domain)
-            else:
-                llm_mode = "refine"
-                llm_result = llm.refine_answer(
-                    question=rewritten_text,
-                    base_answer=result.answer,
-                    node_path=result.node_path,
-                    confidence=result.confidence,
-                    scope=selected_scope,
-                    domain=inferred_domain,
-                    used_fallback=result.used_fallback,
-                )
-        elif llm_policy == "unknown_only":
-            if llm_prefers_direct:
-                llm_mode = "direct"
-                llm_result = llm.answer_general(question=rewritten_text, domain=inferred_domain)
-        else:
-            # smart policy: direct-answer unknowns, refine only weak/learned graph answers.
-            if llm_prefers_direct:
-                llm_mode = "direct"
-                llm_result = llm.answer_general(question=rewritten_text, domain=inferred_domain)
-            elif result.used_fallback or result.confidence < 0.45:
-                llm_mode = "refine"
-                llm_result = llm.refine_answer(
-                    question=rewritten_text,
-                    base_answer=result.answer,
-                    node_path=result.node_path,
-                    confidence=result.confidence,
-                    scope=selected_scope,
-                    domain=inferred_domain,
-                    used_fallback=result.used_fallback,
-                )
+        if not final_answer and intent_kind == "unknown":
+            troubleshooting = fetch_troubleshooting_answer(rewritten_text)
+            if troubleshooting:
+                final_answer, source_name = troubleshooting
+                llm_mode = "troubleshoot_fallback"
 
-    if llm_mode == "skip" and intent_kind == "unknown":
-        troubleshooting = fetch_troubleshooting_answer(rewritten_text)
-        if troubleshooting is not None:
-            answer_text, source_name = troubleshooting
-            llm_mode = "web"
-            llm_result = RefineResult(
-                answer=answer_text,
-                used=False,
-                backend="web",
-                model=source_name,
-                error=None,
-                total_duration_ms=None,
-            )
+        if not final_answer and result.confidence < 0.05:
+            wiki = fetch_realtime_answer(rewritten_text)
+            if wiki:
+                final_answer, source_name = wiki
+                llm_mode = "wiki_fallback"
 
-    # Fallback: for concept/unknown queries the graph couldn't answer, try Wikipedia
-    if llm_mode == "skip" and result.confidence < 0.01 and intent_kind in ("concept", "unknown"):
-        wiki = fetch_realtime_answer(rewritten_text)
-        if wiki is not None:
-            answer_text, source_name = wiki
-            llm_mode = "web"
-            llm_result = RefineResult(
-                answer=answer_text,
-                used=False,
-                backend="web",
-                model=source_name,
-                error=None,
-                total_duration_ms=None,
-            )
-
-    final_answer = llm_result.answer.strip() if llm_result.answer.strip() else result.answer
+    if not final_answer:
+        final_answer = result.answer or "I do not have enough reliable information yet."
 
     contribution = {
         "awarded_credits": 0,

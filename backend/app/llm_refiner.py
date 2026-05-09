@@ -110,7 +110,200 @@ class LLMRefiner:
             total_duration_ms=duration_ms,
         )
 
-    def answer_general(self, *, question: str, domain: str = "general") -> RefineResult:
+    # ── LLM-first pipeline methods ──────────────────────────────────────
+
+    @dataclass(slots=True)
+    class ParsedIntent:
+        kind: str
+        source: str | None
+        target: str | None
+        concept: str | None
+        personal_attribute: str | None
+        personal_value: str | None
+        graph_edges: list[dict]
+        raw_llm: str
+        error: str | None
+        duration_ms: float | None
+
+    def parse_intent(self, question: str) -> "LLMRefiner.ParsedIntent":
+        """Step 1: Ask the LLM to understand the user query and extract structured intent."""
+        query = (question or "").strip()
+        empty = LLMRefiner.ParsedIntent(
+            kind="unknown", source=None, target=None, concept=None,
+            personal_attribute=None, personal_value=None,
+            graph_edges=[], raw_llm="", error=None, duration_ms=None,
+        )
+        if self.backend not in ("ollama", "groq") or not query:
+            empty.error = "llm_disabled" if self.backend not in ("ollama", "groq") else "empty"
+            return empty
+
+        prompt = self._build_parse_intent_prompt(query)
+        text, duration_ms, error = self._generate(prompt, temperature=0.05, max_tokens=300)
+        if error is not None:
+            empty.error = error
+            empty.duration_ms = duration_ms
+            return empty
+
+        raw = (text or "").strip()
+        if not raw:
+            empty.error = "empty_llm_output"
+            empty.duration_ms = duration_ms
+            return empty
+
+        return self._parse_intent_json(raw, duration_ms)
+
+    def format_response(
+        self,
+        *,
+        question: str,
+        graph_answer: str,
+        node_path: list[str],
+        confidence: float,
+        intent_kind: str,
+    ) -> RefineResult:
+        """Step 2: Always produce a clean, human-readable final answer."""
+        query = (question or "").strip()
+        if self.backend not in ("ollama", "groq"):
+            # LLM disabled — return graph answer as-is
+            return RefineResult(
+                answer=graph_answer or "",
+                used=False, backend=self.backend, model=self.model,
+                error=None, total_duration_ms=None,
+            )
+        if not query:
+            return RefineResult(
+                answer=graph_answer or "",
+                used=False, backend=self.backend, model=self.model,
+                error="empty_question", total_duration_ms=None,
+            )
+
+        prompt = self._build_format_response_prompt(
+            question=query,
+            graph_answer=graph_answer,
+            node_path=node_path,
+            confidence=confidence,
+            intent_kind=intent_kind,
+        )
+        text, duration_ms, error = self._generate(
+            prompt, temperature=0.15, max_tokens=min(400, max(96, self.max_tokens)),
+        )
+        if error is not None:
+            return RefineResult(
+                answer=graph_answer or "",
+                used=False, backend=self.backend, model=self.model,
+                error=error, total_duration_ms=duration_ms,
+            )
+        out = (text or "").strip()
+        if not out:
+            return RefineResult(
+                answer=graph_answer or "",
+                used=False, backend=self.backend, model=self.model,
+                error="empty_llm_output", total_duration_ms=duration_ms,
+            )
+        return RefineResult(
+            answer=out, used=True, backend=self.backend, model=self.model,
+            error=None, total_duration_ms=duration_ms,
+        )
+
+    def _build_parse_intent_prompt(self, question: str) -> str:
+        return (
+            "You are a query parser for a knowledge graph system.\n"
+            "Analyze the user's message and return ONLY valid JSON (no markdown, no explanation).\n\n"
+            "Return this exact JSON structure:\n"
+            '{\n'
+            '  "kind": "relation" | "concept" | "personal_fact" | "personal_query" | "general_fact" | "greeting" | "unknown",\n'
+            '  "source": "entity1 or null",\n'
+            '  "target": "entity2 or null",\n'
+            '  "concept": "main topic or null",\n'
+            '  "personal_attribute": "name/location/preference or null",\n'
+            '  "personal_value": "the value or null",\n'
+            '  "graph_edges": [{"source": "entity1", "target": "entity2", "relation": "IS_A|CAUSES|CORRELATES|TEMPORAL"}]\n'
+            '}\n\n'
+            "Rules:\n"
+            '- "greeting": for hi, hello, hey, etc.\n'
+            '- "relation": for questions like "does X cause Y", "is X related to Y"\n'
+            '- "concept": for "what is X", "who is X", "explain X", "how much X", "networth of X", etc.\n'
+            '- "personal_fact": for "my name is X", "I am from X", "I like X"\n'
+            '- "personal_query": for "what is my name", "who am I", "where do I live"\n'
+            '- "general_fact": for "X is Y", "modi is the pm of india" (user teaching a fact)\n'
+            '- For concept queries, set "concept" to the main subject\n'
+            '- For general_fact, extract graph_edges the system should learn\n'
+            '- graph_edges should capture ALL factual relationships stated or implied\n\n'
+            f"User message: {question}\n"
+        )
+
+    def _build_format_response_prompt(
+        self, *, question: str, graph_answer: str, node_path: list[str],
+        confidence: float, intent_kind: str,
+    ) -> str:
+        path_text = " -> ".join(node_path) if node_path else "-"
+        has_answer = bool(graph_answer and graph_answer.strip() and confidence > 0.01)
+        if has_answer:
+            return (
+                "Rewrite the following answer into clear, natural, human-readable language.\n"
+                "Rules:\n"
+                "1) Stay faithful to the provided information.\n"
+                "2) Do NOT invent extra facts beyond what's given.\n"
+                "3) Keep it concise (1-4 sentences).\n"
+                "4) Never mention graphs, nodes, paths, confidence, or internal systems.\n"
+                "5) Return plain text only.\n\n"
+                f"Question: {question}\n"
+                f"Available information: {graph_answer}\n"
+                f"Knowledge path: {path_text}\n"
+                f"Confidence: {confidence:.3f}\n"
+            )
+        return (
+            "You are a helpful, concise assistant.\n"
+            "Answer the user's question clearly in 2-5 sentences.\n"
+            "If you are genuinely unsure, say so briefly.\n"
+            "Do not mention internal systems, graphs, or implementation details.\n"
+            "Use plain text only.\n\n"
+            f"Question: {question}\n"
+        )
+
+    def _parse_intent_json(self, raw: str, duration_ms: float | None) -> "LLMRefiner.ParsedIntent":
+        """Parse the raw LLM output as JSON, with robust fallback."""
+        import re
+        # Try to extract JSON from the response (LLMs sometimes wrap in ```json```)
+        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', raw, re.DOTALL)
+        text_to_parse = json_match.group(0) if json_match else raw
+        try:
+            data = json.loads(text_to_parse)
+        except json.JSONDecodeError:
+            return LLMRefiner.ParsedIntent(
+                kind="unknown", source=None, target=None, concept=None,
+                personal_attribute=None, personal_value=None,
+                graph_edges=[], raw_llm=raw, error="json_parse_error",
+                duration_ms=duration_ms,
+            )
+
+        kind = str(data.get("kind", "unknown")).strip().lower()
+        if kind not in ("relation", "concept", "personal_fact", "personal_query", "general_fact", "greeting", "unknown"):
+            kind = "unknown"
+
+        edges_raw = data.get("graph_edges", [])
+        graph_edges = []
+        if isinstance(edges_raw, list):
+            for edge in edges_raw:
+                if isinstance(edge, dict) and "source" in edge and "target" in edge:
+                    graph_edges.append({
+                        "source": str(edge["source"]).strip().lower(),
+                        "target": str(edge["target"]).strip().lower(),
+                        "relation": str(edge.get("relation", "CORRELATES")).strip().upper(),
+                    })
+
+        return LLMRefiner.ParsedIntent(
+            kind=kind,
+            source=str(data.get("source", "")).strip().lower() or None,
+            target=str(data.get("target", "")).strip().lower() or None,
+            concept=str(data.get("concept", "")).strip().lower() or None,
+            personal_attribute=str(data.get("personal_attribute", "")).strip().lower() or None,
+            personal_value=str(data.get("personal_value", "")).strip().lower() or None,
+            graph_edges=graph_edges,
+            raw_llm=raw,
+            error=None,
+            duration_ms=duration_ms,
+        )
         query = (question or "").strip()
         if self.backend not in ("ollama", "groq"):
             return RefineResult(

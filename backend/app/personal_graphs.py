@@ -55,11 +55,13 @@ class PersonalGraphManager:
         )
         return graph
 
-    def get_pipeline(self, user_id: str) -> QueryPipeline:
+    def get_pipeline(self, user_id: str, llm: LLMRefiner | None = None) -> QueryPipeline:
         safe = sanitize_user_id(user_id)
         with self._lock:
             existing = self._pipelines.get(safe)
             if existing is not None:
+                if llm and not existing.llm:
+                    existing.llm = llm
                 return existing
 
             graph = self._build_graph(safe)
@@ -67,10 +69,6 @@ class PersonalGraphManager:
                 user_dir = self.settings.data_dir / "users" / safe
                 model_path = user_dir / "personal_encoder_model.json"
                 encoder = OwnEncoder(model_path=model_path)
-                # Ensure personal encoder can be trained from the shared training log
-                # In a real system, we might want per-user logs, but the issue states
-                # they are never trained because only shared path is used.
-                # Here we ensure they use the same backend and thus can use the train method.
             elif self.settings.encoder_backend == "fastembed":
                 encoder = TemporaryEncoder(use_fastembed=True)
             else:
@@ -87,6 +85,7 @@ class PersonalGraphManager:
                 encoder,
                 decoder,
                 classifier=QueryClassifier(),
+                llm=llm,
             )
             self._graphs[safe] = graph
             self._pipelines[safe] = pipeline

@@ -10,6 +10,7 @@ from .expansion import ExpansionQueueStore, ExpansionResolver
 from .graph import GraphEngine, PathMatch
 from .models import EdgeType, normalize_label
 from .query_control import ActivationProfile, QueryClassifier
+from .llm_refiner import LLMRefiner, RefineResult
 
 
 @dataclass(slots=True)
@@ -244,6 +245,7 @@ class QueryPipeline:
         classifier: QueryClassifier | None = None,
         expansion_queue: ExpansionQueueStore | None = None,
         expansion_resolver: ExpansionResolver | None = None,
+        llm: LLMRefiner | None = None,
     ) -> None:
         self.graph = graph
         self.encoder = encoder
@@ -251,6 +253,7 @@ class QueryPipeline:
         self.classifier = classifier or QueryClassifier()
         self.expansion_queue = expansion_queue
         self.expansion_resolver = expansion_resolver
+        self.llm = llm
         self._query_counts: dict[str, int] = {}
 
     def run(self, text: str, *, max_hops: int = 7, max_paths: int = 64, allow_learning: bool = True) -> QueryResponse:
@@ -259,11 +262,56 @@ class QueryPipeline:
         profile = self.classifier.classify(encoded.raw_text, encoded.tokens, recall_count)
         self._query_counts[encoded.raw_text] = recall_count + 1
 
-        intent = self._parse_intent(encoded.raw_text)
-        steps = ["encode", f"intent:{intent.kind}", f"activate:{profile.active_dims}"]
+        llm_intent = None
+        if self.llm:
+            llm_intent = self.llm.parse_intent(text)
+            if llm_intent.kind != "unknown" and not llm_intent.error:
+                intent = QueryIntent(
+                    kind=llm_intent.kind,
+                    source=llm_intent.source,
+                    target=llm_intent.target,
+                    concept=llm_intent.concept,
+                    personal_attribute=llm_intent.personal_attribute,
+                    personal_value=llm_intent.personal_value,
+                )
+                steps.append(f"llm_intent:{intent.kind}")
+            else:
+                intent = self._parse_intent(encoded.raw_text)
+                steps.append(f"regex_intent:{intent.kind}")
+        else:
+            intent = self._parse_intent(encoded.raw_text)
+            steps.append(f"regex_intent:{intent.kind}")
+
+        # Learning Step: If LLM extracted edges, apply them
+        created_edges = 0
+        new_nodes = 0
+        if allow_learning and llm_intent and llm_intent.graph_edges:
+            c, n = self._apply_llm_edges(llm_intent.graph_edges, encoded, profile)
+            created_edges += c
+            new_nodes += n
+            steps.append(f"llm_learning:{c}_edges")
+
+        if intent.kind == "greeting":
+            return QueryResponse(
+                answer="Hello! How can I help you today?",
+                raw_text=encoded.raw_text,
+                source=None,
+                target=None,
+                used_fallback=False,
+                created_edges=created_edges,
+                confidence=1.0,
+                node_path=[],
+                steps=steps + ["decode:greeting"],
+                encoder_backend=encoded.backend,
+                activation_ranges=profile.active_ranges,
+                active_dims=profile.active_dims,
+                shortcut_applied=profile.shortcut_applied,
+                expansion_node_id=None,
+                new_nodes_created=new_nodes,
+            )
 
         if intent.kind == "relation" and intent.source and intent.target:
-            return self._run_relation(
+            res = self._run_relation(
                 encoded,
                 profile=profile,
                 source=intent.source,
@@ -273,18 +321,24 @@ class QueryPipeline:
                 steps=steps,
                 allow_learning=allow_learning,
             )
+            res.created_edges += created_edges
+            res.new_nodes_created += new_nodes
+            return res
 
         if intent.kind == "concept" and intent.concept:
-            return self._run_concept(
+            res = self._run_concept(
                 encoded,
                 profile=profile,
                 concept=intent.concept,
                 steps=steps,
                 allow_learning=allow_learning,
             )
+            res.created_edges += created_edges
+            res.new_nodes_created += new_nodes
+            return res
 
         if intent.kind == "personal_fact" and intent.personal_attribute and intent.personal_value:
-            return self._run_personal_fact(
+            res = self._run_personal_fact(
                 encoded,
                 profile=profile,
                 attribute=intent.personal_attribute,
@@ -292,17 +346,23 @@ class QueryPipeline:
                 steps=steps,
                 allow_learning=allow_learning,
             )
+            res.created_edges += created_edges
+            res.new_nodes_created += new_nodes
+            return res
 
         if intent.kind == "personal_query" and intent.personal_attribute:
-            return self._run_personal_query(
+            res = self._run_personal_query(
                 encoded,
                 profile=profile,
                 attribute=intent.personal_attribute,
                 steps=steps,
             )
+            res.created_edges += created_edges
+            res.new_nodes_created += new_nodes
+            return res
 
         if intent.kind == "general_fact" and intent.source and intent.target:
-            return self._run_general_fact(
+            res = self._run_general_fact(
                 encoded,
                 profile=profile,
                 source=intent.source,
@@ -310,6 +370,9 @@ class QueryPipeline:
                 steps=steps,
                 allow_learning=allow_learning,
             )
+            res.created_edges += created_edges
+            res.new_nodes_created += new_nodes
+            return res
 
         return QueryResponse(
             answer="I can answer relation questions like 'does steam burn?' and concept questions like 'what is fire?'.",
@@ -827,4 +890,34 @@ class QueryPipeline:
             expansion_node_id=None,
             new_nodes_created=new_nodes,
         )
+
+    def _apply_llm_edges(self, edges: list[dict], encoded: EncodedQuery, profile: ActivationProfile) -> tuple[int, int]:
+        created = 0
+        new_nodes = 0
+        for edge in edges:
+            source = edge["source"]
+            target = edge["target"]
+            rel_str = edge["relation"]
+            try:
+                etype = EdgeType[rel_str]
+            except (KeyError, ValueError):
+                etype = EdgeType.CORRELATES
+
+            source_exists = self.graph.node_exists(source)
+            target_exists = self.graph.node_exists(target)
+
+            self.graph.create_edge(
+                source,
+                target,
+                etype,
+                strength=0.92,
+                vector=self._build_edge_vector(encoded.semantic_vector, etype, profile),
+            )
+            created += 1
+            if not source_exists:
+                new_nodes += 1
+            if not target_exists:
+                new_nodes += 1
+        return created, new_nodes
+
 
