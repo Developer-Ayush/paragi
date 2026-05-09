@@ -261,40 +261,49 @@ class LLMRefiner:
         confidence: float, intent_kind: str,
     ) -> str:
         path_text = " -> ".join(node_path) if node_path else "-"
-        has_answer = bool(graph_answer and graph_answer.strip() and confidence > 0.01)
+        has_answer = bool(graph_answer and graph_answer.strip() and confidence > 0.05)
+        
         if has_answer:
             uncertainty_note = ""
-            if confidence < 0.3:
+            if confidence < 0.35:
                 uncertainty_note = (
-                    "IMPORTANT: Confidence is LOW. Express genuine uncertainty. "
-                    "Use hedging language like 'it seems', 'possibly', 'based on limited information'. "
-                    "Do NOT present this as certain fact.\n"
+                    "IMPORTANT: Memory confidence is LOW. You SHOULD use your own knowledge to verify and "
+                    "AUGMENT the answer if the provided memory seems too shallow or slightly incorrect. "
+                    "However, do not contradict the memory unless you are certain it is wrong.\n"
                 )
-            elif confidence < 0.6:
+            elif confidence < 0.65:
                 uncertainty_note = (
-                    "Note: Confidence is moderate. You may express mild uncertainty where appropriate.\n"
+                    "Note: Memory confidence is moderate. Use your knowledge to provide a clear, helpful context "
+                    "around the provided memory facts.\n"
                 )
+            
             return (
-                "Rewrite the following answer into clear, natural, human-readable language.\n"
+                "You are the voice of Paragi, an advanced cognition engine. "
+                "Rewrite the following answer into clear, natural, high-quality language.\n"
                 "Rules:\n"
-                "1) Stay faithful to the provided information.\n"
-                "2) Do NOT invent extra facts beyond what's given.\n"
-                "3) Keep it concise (1-4 sentences).\n"
-                "4) Never mention graphs, nodes, paths, confidence, or internal systems.\n"
+                "1) Use the provided 'Available information' as the primary source.\n"
+                "2) If the provided information is shallow (e.g., just a list of categories), "
+                "AUGMENT it with your own general knowledge to make it truly helpful.\n"
+                "3) Keep it concise (2-4 sentences).\n"
+                "4) Never mention graphs, nodes, paths, confidence, or internal implementation details.\n"
                 "5) Return plain text only.\n"
-                "6) If the information suggests a causal chain, preserve that structure.\n"
                 f"{uncertainty_note}\n"
                 f"Question: {question}\n"
                 f"Available information: {graph_answer}\n"
                 f"Knowledge path: {path_text}\n"
                 f"Confidence: {confidence:.3f}\n"
             )
+        
         return (
-            "You are a helpful, concise assistant.\n"
-            "Answer the user's question clearly in 2-5 sentences.\n"
-            "If you are genuinely unsure, say so briefly.\n"
-            "Do not mention internal systems, graphs, or implementation details.\n"
-            "Use plain text only.\n\n"
+            "You are Paragi, a highly intelligent and concise AI assistant. "
+            "The internal knowledge graph did not return a strong match for this query, "
+            "so you must answer using your own general knowledge.\n"
+            "Rules:\n"
+            "1) Answer the question directly and helpfully.\n"
+            "2) Keep the response concise (2-5 sentences).\n"
+            "3) If you are genuinely unsure about a specific fact, state your uncertainty briefly.\n"
+            "4) Do not mention internal systems, graphs, or implementation details.\n"
+            "5) Use plain text only.\n\n"
             f"Question: {question}\n"
         )
 
