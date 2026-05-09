@@ -29,6 +29,7 @@ class LLMRefiner:
         max_tokens: int = 220,
         seed: int = 42,
         keep_alive: str = "30m",
+        api_key: str = "",
     ) -> None:
         self.backend = (backend or "none").strip().lower()
         self.model = (model or "").strip() or "gemma3:4b"
@@ -38,6 +39,7 @@ class LLMRefiner:
         self.max_tokens = int(max(32, min(1024, max_tokens)))
         self.seed = int(seed)
         self.keep_alive = (keep_alive or "30m").strip() or "30m"
+        self.api_key = (api_key or "").strip()
 
     def refine_answer(
         self,
@@ -51,7 +53,7 @@ class LLMRefiner:
         used_fallback: bool,
     ) -> RefineResult:
         raw = (base_answer or "").strip()
-        if self.backend != "ollama":
+        if self.backend not in ("ollama", "groq"):
             return RefineResult(
                 answer=raw,
                 used=False,
@@ -110,7 +112,7 @@ class LLMRefiner:
 
     def answer_general(self, *, question: str, domain: str = "general") -> RefineResult:
         query = (question or "").strip()
-        if self.backend != "ollama":
+        if self.backend not in ("ollama", "groq"):
             return RefineResult(
                 answer="",
                 used=False,
@@ -163,9 +165,16 @@ class LLMRefiner:
             "backend": self.backend,
             "model": self.model,
             "base_url": self.base_url,
-            "enabled": self.backend == "ollama",
+            "enabled": self.backend in ("ollama", "groq"),
             "keep_alive": self.keep_alive,
         }
+        if self.backend == "groq":
+            payload["reachable"] = bool(self.api_key)
+            payload["reason"] = "" if self.api_key else "missing_api_key"
+            payload["available_models"] = ["llama3-8b-8192", "llama3-70b-8192", "gemma2-9b-it"]
+            payload["model_available"] = True
+            return payload
+
         if self.backend != "ollama":
             payload["reachable"] = False
             payload["reason"] = "disabled"
@@ -236,6 +245,9 @@ class LLMRefiner:
         )
 
     def _generate(self, prompt: str, *, temperature: float, max_tokens: int) -> tuple[str, float | None, str | None]:
+        if self.backend == "groq":
+            return self._request_generate_groq(prompt, temperature=temperature, max_tokens=max_tokens)
+
         text, duration_ms, error, status = self._request_generate(
             prompt,
             temperature=temperature,
@@ -334,3 +346,42 @@ class LLMRefiner:
         except Exception:
             pass
         return raw
+
+    def _request_generate_groq(
+        self, prompt: str, *, temperature: float, max_tokens: int
+    ) -> tuple[str, float | None, str | None]:
+        endpoint = "https://api.groq.com/openai/v1/chat/completions"
+        model = self.model if self.model and self.model != "gemma3:4b" else "gemma2-9b-it"
+        body = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": float(max(0.0, min(1.5, temperature))),
+            "max_completion_tokens": int(max(32, min(1024, max_tokens))),
+            "stream": False,
+        }
+        encoded = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(
+            endpoint,
+            data=encoded,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}"
+            },
+            method="POST",
+        )
+        import time
+        t0 = time.perf_counter()
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
+                payload = json.loads(resp.read().decode("utf-8", errors="ignore"))
+        except urllib.error.HTTPError as exc:
+            return "", None, f"http_error:{exc.code}"
+        except Exception as exc:
+            return "", None, str(exc)
+
+        duration_ms = (time.perf_counter() - t0) * 1000.0
+        choices = payload.get("choices", [])
+        if not choices:
+            return "", duration_ms, "no_choices"
+        text = str(choices[0].get("message", {}).get("content", "")).strip()
+        return text, duration_ms, None

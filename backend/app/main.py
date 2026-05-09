@@ -167,6 +167,7 @@ def _initialize_state(app: FastAPI, *, start_workers: bool) -> None:
         max_tokens=settings.llm_max_tokens,
         seed=settings.llm_seed,
         keep_alive=settings.llm_keep_alive,
+        api_key=settings.llm_api_key,
     )
 
     app.state.settings = settings

@@ -39,6 +39,7 @@ class Settings:
     llm_seed: int
     llm_keep_alive: str
     llm_policy: str
+    llm_api_key: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -63,7 +64,7 @@ class Settings:
         if decoder_backend not in {"own", "temporary"}:
             decoder_backend = "own"
         llm_backend = os.getenv("PARAGI_LLM_BACKEND", "none").strip().lower()
-        if llm_backend not in {"none", "ollama"}:
+        if llm_backend not in {"none", "ollama", "groq"}:
             llm_backend = "none"
         llm_model = os.getenv("PARAGI_LLM_MODEL", "gemma3:4b").strip() or "gemma3:4b"
         llm_base_url = os.getenv("PARAGI_LLM_BASE_URL", "http://127.0.0.1:11434").strip() or "http://127.0.0.1:11434"
@@ -75,6 +76,7 @@ class Settings:
         llm_policy = os.getenv("PARAGI_LLM_POLICY", "smart").strip().lower()
         if llm_policy not in {"always", "smart", "unknown_only"}:
             llm_policy = "smart"
+        llm_api_key = os.getenv("GROQ_API_KEY", "").strip() or os.getenv("PARAGI_LLM_API_KEY", "").strip()
 
         settings = cls(
             data_dir=data_dir,
@@ -109,6 +111,7 @@ class Settings:
             llm_seed=llm_seed,
             llm_keep_alive=llm_keep_alive,
             llm_policy=llm_policy,
+            llm_api_key=llm_api_key,
         )
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         return settings
