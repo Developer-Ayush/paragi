@@ -516,6 +516,66 @@ input {
   font-size: 0.82rem;
 }
 
+.mini-button {
+  border: 1px solid #c4aa84;
+  background: #efdbbc;
+  color: #3d2c17;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.evolution-panel {
+  margin-top: 10px;
+  border: 1px solid #dcc6a6;
+  border-radius: 10px;
+  background: #fff9ef;
+  padding: 10px;
+}
+
+.evolution-panel strong {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+  color: var(--ok);
+}
+
+.diff-view {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.diff-box {
+  background: #fff;
+  border: 1px solid #ead9bd;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.diff-box small {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.diff-box p {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.evolution-meta {
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-family: var(--font-mono), monospace;
+  text-align: right;
+}
+
 .graphs-page {
   display: grid;
   gap: 12px;

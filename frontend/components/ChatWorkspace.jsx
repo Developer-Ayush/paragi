@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import GraphPanel from "@/components/GraphPanel";
 import { getAuthSession, clearAuthSession } from "@/lib/auth";
 import { createSession, loadSessions, normalizeTitle, saveSessions, upsertSession } from "@/lib/chat-storage";
-import { health, llmStatus, logout, query, session } from "@/lib/api";
+import { health, llmStatus, logout, query, session, queryHistoryEvolution } from "@/lib/api";
 
 function makeMessage(role, text, meta = null) {
   return {
@@ -131,7 +131,8 @@ export default function ChatWorkspace() {
     withActiveSession((sessionItem) => {
       const nextMessages = (sessionItem.messages || []).map((message) => {
         if (message.id !== messageId) return message;
-        return { ...message, ...patch };
+        const nextMeta = patch.meta ? { ...(message.meta || {}), ...patch.meta } : message.meta;
+        return { ...message, ...patch, meta: nextMeta };
       });
       return {
         ...sessionItem,
@@ -139,6 +140,26 @@ export default function ChatWorkspace() {
         messages: nextMessages,
       };
     });
+  }
+
+  async function checkEvolution(messageId, recordId) {
+    if (!recordId) return;
+    try {
+      const data = await queryHistoryEvolution(recordId);
+      patchMessage(messageId, {
+        meta: {
+          evolution: {
+            changed: data.changed,
+            updated_answer: data.updated_answer,
+            frozen_snapshot: data.frozen_snapshot,
+            confidence_delta: data.confidence_delta,
+            checkedAt: Date.now(),
+          },
+        },
+      });
+    } catch (err) {
+      console.error("Evolution check failed:", err);
+    }
   }
 
   async function sendQuery() {
@@ -292,6 +313,40 @@ export default function ChatWorkspace() {
                     <div>confidence: {Number(message.meta.confidence || 0).toFixed(3)} | llm_mode: {message.meta.llm_mode}</div>
                     <div>benefits_main_graph: {String(message.meta.benefits_main_graph)}</div>
                     <div>path: {(message.meta.path || []).join(" -> ") || "-"}</div>
+                    {message.meta.history_record_id && (
+                      <div style={{ marginTop: "8px" }}>
+                        <button
+                          className="mini-button"
+                          onClick={() => checkEvolution(message.id, message.meta.history_record_id)}
+                        >
+                          Check for updates
+                        </button>
+                      </div>
+                    )}
+                    {message.meta.evolution && (
+                      <div className="evolution-panel">
+                        <strong>
+                          {message.meta.evolution.changed
+                            ? "✨ Paragi knows more now!"
+                            : "Memory is consistent."}
+                        </strong>
+                        {message.meta.evolution.changed && (
+                          <div className="diff-view">
+                            <div className="diff-box">
+                              <small>Then:</small>
+                              <p>{message.meta.evolution.frozen_snapshot}</p>
+                            </div>
+                            <div className="diff-box">
+                              <small>Now:</small>
+                              <p>{message.meta.evolution.updated_answer}</p>
+                            </div>
+                          </div>
+                        )}
+                        <div className="evolution-meta">
+                          Confidence Δ: {message.meta.evolution.confidence_delta.toFixed(3)}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </details>
               )}

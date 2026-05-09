@@ -95,7 +95,8 @@ class OwnDecoder:
 
         lines = records_path.read_text(encoding="utf-8").splitlines()
         confidence_values: list[float] = []
-        phrase_counts: Dict[str, int] = {}
+        # phrase_scores: Dict[EdgeType, Dict[str, float]]
+        phrase_scores: dict[EdgeType, dict[str, float]] = {}
         records_used = 0
 
         for line in reversed(lines):
@@ -117,14 +118,28 @@ class OwnDecoder:
                 continue
 
             confidence_values.append(confidence)
+
+            # Analyze which phrases are associated with high-confidence answers
             for edge_type, phrases in self._relation_phrases.items():
+                scores = phrase_scores.setdefault(edge_type, {})
                 for phrase in phrases:
                     if phrase in answer:
-                        phrase_counts[phrase] = phrase_counts.get(phrase, 0) + 1
+                        scores[phrase] = scores.get(phrase, 0.0) + confidence
+
             records_used += 1
 
         if records_used < min_samples:
             return {"records_used": records_used, "updated": False, "reason": "not_enough_samples"}
+
+        # Update preferred phrases based on score (cumulative confidence)
+        for edge_type, scores in phrase_scores.items():
+            if scores:
+                best_phrase = max(scores, key=scores.get)
+                # Ensure the best phrase is moved to the front
+                phrases = self._relation_phrases[edge_type]
+                if best_phrase in phrases:
+                    phrases.remove(best_phrase)
+                    phrases.insert(0, best_phrase)
 
         ordered_conf = sorted(confidence_values)
         idx_low = max(0, int(len(ordered_conf) * 0.2) - 1)

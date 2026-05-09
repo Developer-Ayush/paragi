@@ -694,6 +694,19 @@ class GraphEngine:
         ]
         return self.bootstrap(seeds)
 
+    def prune_edges(self, threshold: float | None = None) -> int:
+        """Remove edges below the strength threshold."""
+        if threshold is None:
+            threshold = self.edge_strength_floor
+
+        count = 0
+        for edge_id in self.store.list_edge_ids():
+            edge = self.store.get_edge(edge_id)
+            if edge is not None and edge.strength < threshold:
+                self.store.delete_edge(edge_id)
+                count += 1
+        return count
+
     def deduplicate_graph(self) -> dict[str, int]:
         """
         Deduplicate nodes with identical labels and edges between same source/target.
