@@ -199,12 +199,13 @@ class QueryPipeline:
         re.compile(r"^\s*is\s+([a-z0-9_]+)\s+([a-z0-9_]+)\??\s*$"),
     ]
     concept_patterns = [
-        re.compile(r"^\s*what\s+(?:is+|are)\s+([a-z0-9_ ]+)\??\s*$"),
-        re.compile(r"^\s*who\s+(?:is+|was|are)\s+([a-z0-9_ ]+)\??\s*$"),
-        re.compile(r"^\s*(?:define|describe|explain)\s+([a-z0-9_ ]+)\??\s*$"),
-        re.compile(r"^\s*tell\s+me\s+about\s+([a-z0-9_ ]+)\??\s*$"),
+        re.compile(r"^\s*what\s+(?:is+|are)\s+(.+?)\??\s*$"),
+        re.compile(r"^\s*who\s+(?:is+|was|are)\s+(.+?)\??\s*$"),
+        re.compile(r"^\s*(?:define|describe|explain)\s+(.+?)\??\s*$"),
+        re.compile(r"^\s*tell\s+me\s+about\s+(.+?)\??\s*$"),
+        re.compile(r"^\s*(.+?\s+of\s+.+?)\??\s*$"),
     ]
-    general_fact_pattern = re.compile(r"^\s*([a-z0-9_ ]+?)\s+is\s+([a-z0-9_ ]+)\s*$")
+    general_fact_pattern = re.compile(r"^\s*(.+?)\s+is\s+(.+?)\s*$")
     personal_patterns = [
         (re.compile(r"^\s*my\s+name\s+is\s+([a-z0-9_ ]+)\s*$"), "name"),
         (re.compile(r"^\s*my\s+nationality\s+is\s+([a-z0-9_ ]+)\s*$"), "nationality"),
