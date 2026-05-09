@@ -180,12 +180,48 @@ class QueryRewriter:
                 vocab.add(token)
         return vocab
 
+    # Patterns that indicate the subject starts at a specific token index.
+    # Format: list of (prefix_tokens_tuple, subject_start_offset)
+    _concept_prefixes = [
+        (("what", "is", "my"), 3),
+        (("what", "is", "the"), 3),
+        (("what", "is"), 2),
+        (("what", "are"), 2),
+        (("who", "is"), 2),
+        (("who", "was"), 2),
+        (("who", "are"), 2),
+        (("define",), 1),
+        (("describe",), 1),
+        (("explain",), 1),
+        (("tell", "me", "about"), 3),
+        (("how", "much"), 2),
+        (("how", "many"), 2),
+        (("how", "big"), 2),
+        (("how", "old"), 2),
+        (("how", "tall"), 2),
+        (("how", "fast"), 2),
+        (("how", "far"), 2),
+        (("how", "long"), 2),
+        (("how", "do"), 2),
+        (("how", "does"), 2),
+        (("how", "did"), 2),
+        (("how", "is"), 2),
+        (("how", "are"), 2),
+        (("where", "is"), 2),
+        (("where", "are"), 2),
+        (("where", "do"), 2),
+        (("where", "does"), 2),
+        (("when", "is"), 2),
+        (("when", "was"), 2),
+        (("when", "did"), 2),
+        (("why", "is"), 2),
+        (("why", "are"), 2),
+        (("why", "do"), 2),
+        (("why", "does"), 2),
+    ]
+
     def _locked_token_indexes(self, tokens: list[str]) -> set[int]:
         locked: set[int] = set()
-        if len(tokens) >= 6 and tokens[0] == "what" and tokens[1] == "is" and tokens[2] == "my":
-            # Preserve long personal-attribute questions to keep attribute labels stable.
-            locked.update(range(3, len(tokens)))
-            return locked
         if len(tokens) >= 4 and tokens[0] == "my" and "is" in tokens[1:]:
             # Preserve personal declarations exactly to avoid distorting private facts.
             is_index = tokens.index("is", 1)
@@ -205,6 +241,19 @@ class QueryRewriter:
         if len(tokens) >= 2 and tokens[0] == "i" and tokens[1] == "like":
             locked.update(range(2, len(tokens)))
             return locked
+
+        # Lock subject tokens in concept/question queries so proper nouns
+        # and domain terms are never rewritten.
+        for prefix, offset in self._concept_prefixes:
+            if len(tokens) >= offset + 1 and tuple(tokens[:len(prefix)]) == prefix:
+                locked.update(range(offset, len(tokens)))
+                return locked
+
+        # For general "<subject> is <object>" fact patterns, lock everything.
+        if "is" in tokens:
+            locked.update(range(len(tokens)))
+            return locked
+
         return locked
 
     def _correct_token(self, token: str, vocab: Set[str]) -> RewriteCorrection | None:
@@ -213,15 +262,13 @@ class QueryRewriter:
             return learned
 
         candidates = list(vocab)
-        close = difflib.get_close_matches(token, candidates, n=1, cutoff=0.75)
-        if not close and len(token) <= 4:
-            close = difflib.get_close_matches(token, candidates, n=1, cutoff=0.66)
+        close = difflib.get_close_matches(token, candidates, n=1, cutoff=0.82)
         if not close:
             return None
 
         target = close[0]
         score = difflib.SequenceMatcher(a=token, b=target).ratio()
-        if score < 0.66:
+        if score < 0.80:
             return None
         return RewriteCorrection(source=token, target=target, score=score)
 
