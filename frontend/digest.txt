@@ -1,0 +1,2200 @@
+Directory structure:
+└── frontend/
+    ├── README.md
+    ├── jsconfig.json
+    ├── next-env.d.ts
+    ├── next.config.mjs
+    ├── package.json
+    ├── tsconfig.json
+    ├── .env.local
+    ├── .env.local.example
+    ├── app/
+    │   ├── globals.css
+    │   ├── layout.jsx
+    │   ├── page.jsx
+    │   ├── chat/
+    │   │   └── page.jsx
+    │   ├── graphs/
+    │   │   └── page.jsx
+    │   └── login/
+    │       └── page.jsx
+    ├── components/
+    │   ├── ChatWorkspace.jsx
+    │   ├── GraphCanvas.jsx
+    │   └── GraphPanel.jsx
+    └── lib/
+        ├── api.js
+        ├── auth.js
+        └── chat-storage.js
+
+================================================
+FILE: README.md
+================================================
+# Paragi Frontend (Next.js)
+
+## Setup
+
+```powershell
+cd frontend
+npm install
+```
+
+## Run
+
+```powershell
+cd frontend
+npm run dev
+```
+
+Open: http://localhost:3000
+
+## Routes
+
+- `/login` local auth register/login
+- `/chat` chat UI with local chat sessions + side memory graphs
+- `/graphs` full graph dashboard + stored query list
+
+## Env
+
+Use `frontend/.env.local`:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+```
+
+## Notes
+
+- Backend must run first at `http://127.0.0.1:8000`.
+- Personal + main graph hovers use backend `description` fields from `/graph/summary`.
+- Chat sessions are stored in browser localStorage per user ID.
+
+
+
+================================================
+FILE: jsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  }
+}
+
+
+
+================================================
+FILE: next-env.d.ts
+================================================
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/basic-features/typescript for more information.
+
+
+
+================================================
+FILE: next.config.mjs
+================================================
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin-allow-popups",
+          },
+        ],
+      },
+    ];
+  },
+};
+
+export default nextConfig;
+
+
+
+================================================
+FILE: package.json
+================================================
+{
+  "name": "paragi-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@react-oauth/google": "^0.13.5",
+    "next": "14.2.7",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "25.6.2",
+    "@types/react": "19.2.14",
+    "typescript": "6.0.3"
+  }
+}
+
+
+
+================================================
+FILE: tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": true,
+    "incremental": true,
+    "module": "esnext",
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
+
+
+================================================
+FILE: .env.local
+================================================
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+
+
+
+================================================
+FILE: .env.local.example
+================================================
+ï»¿NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+
+
+
+================================================
+FILE: app/globals.css
+================================================
+:root {
+  --bg-top: #f4f0e3;
+  --bg-bottom: #ede4d2;
+  --card: #fff9ef;
+  --line: #d7c2a0;
+  --ink: #1f1a14;
+  --muted: #6c5b44;
+  --accent: #9f3b19;
+  --accent-soft: #f5dfbd;
+  --ok: #205f3d;
+  --danger: #b83232;
+  --shadow: 0 16px 40px rgba(52, 38, 16, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-display), sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(1000px 500px at -10% -10%, #faebcf 0%, transparent 60%),
+    radial-gradient(900px 480px at 110% -20%, #ffecc9 0%, transparent 60%),
+    linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.page {
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.page.center {
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+}
+
+.login-page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background: 
+    radial-gradient(circle at 15% 50%, rgba(250, 235, 207, 0.6), transparent 30%),
+    radial-gradient(circle at 85% 30%, rgba(255, 236, 201, 0.6), transparent 30%),
+    linear-gradient(135deg, var(--bg-top), var(--bg-bottom));
+  animation: bg-shift 15s ease-in-out infinite alternate;
+}
+
+@keyframes bg-shift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
+.login-card {
+  width: min(440px, 92vw);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 24px;
+  box-shadow: 0 16px 40px rgba(52, 38, 16, 0.08), inset 0 1px 0 rgba(255, 255, 255, 1);
+  padding: 32px;
+  display: grid;
+  gap: 16px;
+  position: relative;
+  z-index: 10;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.login-card:hover {
+  transform: translateY(-4px);
+}
+
+.login-card h1 {
+  margin: 0;
+}
+
+.login-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.login-card label {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.login-card input {
+  border: 1px solid #cab391;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.mode-switch button,
+.rail-actions button,
+.chat-main .composer button,
+.graphs-actions button,
+.login-card button {
+  border: 1px solid #c4aa84;
+  background: linear-gradient(180deg, #f7ebd7, #efdbbc);
+  color: #3d2c17;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+
+.login-card button:hover {
+  background: linear-gradient(180deg, #fff2e1, #f5e2c5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+}
+
+.mode-switch button.active,
+.login-card button.primary {
+  background: linear-gradient(180deg, #b04620, var(--accent));
+  border-color: #8a3113;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(159, 59, 25, 0.25);
+}
+
+.mode-switch button.active:hover,
+.login-card button.primary:hover {
+  background: linear-gradient(180deg, #bd4e25, #ac411c);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(159, 59, 25, 0.35);
+}
+
+.chat-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr) 400px;
+  gap: 14px;
+  min-height: calc(100vh - 40px);
+  align-items: stretch;
+}
+
+.left-rail,
+.chat-main,
+.right-rail,
+.history-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+
+.left-rail {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  overflow: hidden;
+  height: calc(100vh - 40px);
+}
+
+.brand-box {
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(120deg, #fff4dd, #fffaf2);
+}
+
+.brand-box h1 {
+  margin: 0;
+  font-size: 1.06rem;
+}
+
+.brand-box p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.meta-box {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 5px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-family: var(--font-mono), monospace;
+}
+
+.rail-actions {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.chat-session-list {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  align-content: start;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+
+.session-item {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  border: 1px solid #dcc6a6;
+  border-radius: 10px;
+  background: #fffdf8;
+  padding: 8px;
+}
+
+.session-item small {
+  color: var(--muted);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+}
+
+.session-item.active {
+  border-color: var(--accent);
+  background: #fff2dd;
+}
+
+.history-box {
+  border-top: 1px solid var(--line);
+  padding: 12px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.history-box h4 {
+  margin: 0 0 8px;
+}
+
+.history-row {
+  border: 1px solid #e7d8bf;
+  border-radius: 9px;
+  background: #fff;
+  padding: 7px;
+  margin-bottom: 7px;
+}
+
+.history-row small {
+  color: var(--muted);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+}
+
+.chat-main {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: calc(100vh - 40px);
+  min-height: 0;
+}
+
+.chat-header {
+  border-bottom: 1px solid var(--line);
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(90deg, #fff5e1, #fffaf2);
+}
+
+.chat-header span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-family: var(--font-mono), monospace;
+}
+
+.message-list {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  overflow-y: auto;
+  min-height: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 243, 0.9), rgba(255, 248, 236, 0.55)),
+    repeating-linear-gradient(180deg, transparent 0 42px, rgba(217, 194, 162, 0.2) 42px 43px);
+}
+
+.bubble {
+  border: 1px solid #d9c29f;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+  max-width: 94%;
+}
+
+.bubble.user {
+  margin-left: auto;
+  border-left: 4px solid var(--accent);
+}
+
+.bubble.assistant {
+  margin-right: auto;
+  border-left: 4px solid var(--ok);
+}
+
+.bubble .role {
+  font-size: 0.7rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+  font-family: var(--font-mono), monospace;
+}
+
+.bubble .body {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.trace {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-family: var(--font-mono), monospace;
+  display: grid;
+  gap: 2px;
+}
+
+.trace-details {
+  margin-top: 8px;
+  border-top: 1px dashed #dbc5a2;
+  padding-top: 6px;
+}
+
+.trace-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+}
+
+.composer {
+  border-top: 1px solid var(--line);
+  background: #fff8eb;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.composer input {
+  border: 1px solid #c9b18d;
+  border-radius: 10px;
+  background: #fff;
+  padding: 11px;
+}
+
+.right-rail {
+  overflow: auto;
+  height: calc(100vh - 40px);
+}
+
+.graph-panel {
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.graph-top-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.panel-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.panel-mode-switch button {
+  border: 1px solid #d7c09a;
+  background: #fff;
+  color: #5a4a35;
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.panel-mode-switch button.active {
+  border-color: var(--accent);
+  background: #fff1dc;
+  color: #462f18;
+}
+
+.graph-card,
+.impact-card {
+  border: 1px solid #dbc8a9;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.graph-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #ead9bd;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-family: var(--font-mono), monospace;
+}
+
+.graph-svg {
+  width: 100%;
+  height: 246px;
+  background: linear-gradient(180deg, #fffdf9, #fff7eb);
+}
+
+.graph-label {
+  fill: #4e3b23;
+  font-size: 9px;
+  font-family: var(--font-mono), monospace;
+}
+
+.graph-empty {
+  fill: #8a7556;
+  font-size: 12px;
+  font-family: var(--font-mono), monospace;
+}
+
+.graph-hover-text {
+  margin: 0;
+  padding: 10px;
+  border-top: 1px solid #ecdcc2;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  min-height: 72px;
+}
+
+.impact-card {
+  padding: 10px;
+}
+
+.impact-card h4 {
+  margin: 0 0 10px;
+}
+
+.contrib-card {
+  border: 1px solid #dbc8a9;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.contrib-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid #ead9bd;
+  background: #fff9ef;
+}
+
+.contrib-head strong {
+  font-size: 0.86rem;
+}
+
+.contrib-head button {
+  border: 1px solid #d9c3a2;
+  background: #fff;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.contrib-list {
+  max-height: 230px;
+  overflow-y: auto;
+  padding: 8px;
+  display: grid;
+  gap: 7px;
+}
+
+.contrib-row {
+  border: 1px solid #ebd8b8;
+  border-radius: 8px;
+  background: #fffdf8;
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.contrib-title {
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.contrib-row small {
+  color: var(--muted);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.69rem;
+}
+
+.contrib-empty {
+  border: 1px dashed #e4d1b1;
+  border-radius: 8px;
+  padding: 10px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.impact-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.impact-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #ebd8b8;
+  border-radius: 8px;
+  padding: 7px;
+  background: #fffdf8;
+  font-size: 0.82rem;
+}
+
+.panel-error {
+  background: #ffe6e6;
+  color: var(--danger);
+  border: 1px solid #ffc2c2;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 0.82rem;
+}
+
+.mini-button {
+  border: 1px solid #c4aa84;
+  background: #efdbbc;
+  color: #3d2c17;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.evolution-panel {
+  margin-top: 10px;
+  border: 1px solid #dcc6a6;
+  border-radius: 10px;
+  background: #fff9ef;
+  padding: 10px;
+}
+
+.evolution-panel strong {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+  color: var(--ok);
+}
+
+.diff-view {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.diff-box {
+  background: #fff;
+  border: 1px solid #ead9bd;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.diff-box small {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.diff-box p {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.evolution-meta {
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-family: var(--font-mono), monospace;
+  text-align: right;
+}
+
+.graphs-page {
+  display: grid;
+  gap: 12px;
+}
+
+.graphs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.graphs-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 520px) 1fr;
+  gap: 14px;
+}
+
+.history-card {
+  padding: 12px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.history-card h3 {
+  margin: 0;
+}
+
+.history-row.wide {
+  display: grid;
+  gap: 4px;
+}
+
+@media (max-width: 1260px) {
+  .chat-layout {
+    grid-template-columns: 260px 1fr;
+  }
+
+  .right-rail {
+    grid-column: 1 / -1;
+    height: auto;
+  }
+
+  .left-rail,
+  .chat-main {
+    height: auto;
+    min-height: 70vh;
+  }
+}
+
+@media (max-width: 840px) {
+  .page {
+    padding: 12px;
+  }
+
+  .chat-layout,
+  .graphs-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-main {
+    min-height: 70vh;
+  }
+}
+
+
+
+================================================
+FILE: app/layout.jsx
+================================================
+ï»¿import "./globals.css";
+import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
+import "@/public/favicon.svg";
+
+const display = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-display",
+});
+
+const mono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
+});
+
+export const metadata = {
+  title: "Paragi Studio",
+  description: "Local AI chat with personal and main memory graphs",
+  icons: {
+    icon: "@/public/favicon.svg",
+  },
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body className={`${display.variable} ${mono.variable}`}>
+        {children}
+      </body>
+    </html>
+  );
+}
+
+
+================================================
+FILE: app/page.jsx
+================================================
+ï»¿"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { getAuthSession } from "@/lib/auth";
+
+export default function HomePage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const auth = getAuthSession();
+    if (auth?.token && auth?.userId) {
+      router.replace("/chat");
+      return;
+    }
+    router.replace("/login");
+  }, [router]);
+
+  return <main className="page center">Routing...</main>;
+}
+
+
+
+================================================
+FILE: app/chat/page.jsx
+================================================
+import { Suspense } from "react";
+import ChatWorkspace from "@/components/ChatWorkspace";
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<main className="page center">Loading...</main>}>
+      <ChatWorkspace />
+    </Suspense>
+  );
+}
+
+
+
+================================================
+FILE: app/graphs/page.jsx
+================================================
+ï»¿"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import GraphPanel from "@/components/GraphPanel";
+import { historyByUser, session } from "@/lib/api";
+import { clearAuthSession, getAuthSession } from "@/lib/auth";
+
+export default function GraphsPage() {
+  const router = useRouter();
+  const [userId, setUserId] = useState("");
+  const [records, setRecords] = useState([]);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function boot() {
+      const local = getAuthSession();
+      if (!local?.token || !local?.userId) {
+        router.replace("/login");
+        return;
+      }
+      try {
+        const s = await session(local.token);
+        if (cancelled) return;
+        setUserId(s.user_id);
+        const history = await historyByUser(s.user_id, 25, "all");
+        if (cancelled) return;
+        setRecords(history.items);
+        setReady(true);
+      } catch {
+        clearAuthSession();
+        router.replace("/login");
+      }
+    }
+
+    boot();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  if (!ready) {
+    return <main className="page center">Loading graph dashboard...</main>;
+  }
+
+  return (
+    <main className="page graphs-page">
+      <div className="graphs-header">
+        <h1>Graph Dashboard</h1>
+        <div className="graphs-actions">
+          <button onClick={() => router.push("/chat")}>Back to Chat</button>
+        </div>
+      </div>
+
+      <div className="graphs-grid">
+        <GraphPanel userId={userId} refreshSignal={0} />
+
+        <section className="history-card">
+          <h3>Recent Stored Queries</h3>
+          {records.length === 0 && <p>No history yet.</p>}
+          {records.map((item) => (
+            <article key={item.id} className="history-row wide">
+              <strong>{item.raw_text}</strong>
+              <div>{item.frozen_snapshot}</div>
+              <small>
+                scope={item.scope} | domain={item.domain} | benefits_main_graph={String(item.benefits_main_graph)}
+              </small>
+            </article>
+          ))}
+        </section>
+      </div>
+    </main>
+  );
+}
+
+
+
+================================================
+FILE: app/login/page.jsx
+================================================
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { getApiBase, googleLogin, login, register } from "@/lib/api";
+import { setAuthSession } from "@/lib/auth";
+import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [mode, setMode] = useState("login"); // 'login' or 'register'
+  
+  const [userId, setUserId] = useState("");
+  const [password, setPassword] = useState("");
+
+  const apiBase = useMemo(() => getApiBase(), []);
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+
+  async function handleNativeAuth(e) {
+    e.preventDefault();
+    if (!userId.trim() || !password.trim()) {
+      setError("Username and password are required.");
+      return;
+    }
+    
+    setLoading(true);
+    setError("");
+    try {
+      if (mode === "register") {
+        await register({ user_id: userId, password, tier: "free" });
+        // Automatically login after successful registration
+      }
+      const data = await login({ user_id: userId, password });
+      
+      setAuthSession({
+        token: data.token,
+        userId: data.user_id,
+        tier: data.tier,
+        sessionExpiresAt: data.session_expires_at,
+      });
+      router.replace("/chat");
+    } catch (err) {
+      setError(err.message || "Authentication failed. Please check your credentials.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGoogleSuccess(credentialResponse) {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await googleLogin(credentialResponse.credential);
+      setAuthSession({
+        token: data.token,
+        userId: data.user_id,
+        tier: data.tier,
+        sessionExpiresAt: data.session_expires_at,
+      });
+      router.replace("/chat");
+    } catch (err) {
+      setError(err.message || "Google authentication failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <GoogleOAuthProvider clientId={clientId}>
+      <main className="page login-page">
+        <section className="login-card">
+          <div style={{ textAlign: "center", marginBottom: "8px" }}>
+            <h1 style={{ fontSize: "1.8rem", color: "#4a3520", marginBottom: "4px" }}>Paragi Studio</h1>
+            <p style={{ fontSize: "0.9rem" }}>Your graph-native cognition engine.</p>
+          </div>
+
+          <div className="mode-switch">
+            <button 
+              type="button" 
+              className={mode === "login" ? "active" : ""} 
+              onClick={() => { setMode("login"); setError(""); }}
+            >
+              Sign In
+            </button>
+            <button 
+              type="button" 
+              className={mode === "register" ? "active" : ""} 
+              onClick={() => { setMode("register"); setError(""); }}
+            >
+              Create Account
+            </button>
+          </div>
+
+          {error && <div className="panel-error" style={{ margin: "4px 0" }}>{error}</div>}
+
+          <form onSubmit={handleNativeAuth} style={{ display: "grid", gap: "12px" }}>
+            <div style={{ display: "grid", gap: "4px" }}>
+              <label htmlFor="userId">Username</label>
+              <input 
+                id="userId"
+                type="text" 
+                placeholder="Enter your username"
+                value={userId}
+                onChange={e => setUserId(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            
+            <div style={{ display: "grid", gap: "4px" }}>
+              <label htmlFor="password">Password</label>
+              <input 
+                id="password"
+                type="password" 
+                placeholder="Enter your password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <button type="submit" className="primary" disabled={loading} style={{ marginTop: "8px" }}>
+              {loading ? "Authenticating..." : (mode === "login" ? "Sign In" : "Register")}
+            </button>
+          </form>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "12px 0" }}>
+            <hr style={{ flex: 1, borderTop: "1px solid rgba(215, 194, 160, 0.5)" }} />
+            <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>OR</span>
+            <hr style={{ flex: 1, borderTop: "1px solid rgba(215, 194, 160, 0.5)" }} />
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setError("Google login widget failed to load.")}
+              useOneTap
+              theme="outline"
+              shape="pill"
+            />
+          </div>
+
+          <small style={{ marginTop: "16px", display: "block", textAlign: "center", color: "#8b765c" }}>
+            API Endpoint: {apiBase}
+          </small>
+        </section>
+      </main>
+    </GoogleOAuthProvider>
+  );
+}
+
+
+
+================================================
+FILE: components/ChatWorkspace.jsx
+================================================
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import GraphPanel from "@/components/GraphPanel";
+import { getAuthSession, clearAuthSession } from "@/lib/auth";
+import { createSession, loadSessions, normalizeTitle, saveSessions, upsertSession, deleteSession } from "@/lib/chat-storage";
+import { health, llmStatus, logout, query, session, queryHistoryEvolution } from "@/lib/api";
+
+function makeMessage(role, text, meta = null) {
+  return {
+    id: `${role}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    role,
+    text,
+    meta,
+    timestamp: Date.now(),
+  };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export default function ChatWorkspace() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlChatId = searchParams.get("chatId");
+  const [auth, setAuth] = useState(null);
+  const [checking, setChecking] = useState(true);
+  const [sessions, setSessions] = useState([]);
+  const [activeId, setActiveId] = useState("");
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [status, setStatus] = useState("Ready");
+  const [meta, setMeta] = useState({ health: "-", llm: "-" });
+  const [refreshSignal, setRefreshSignal] = useState(0);
+
+  const activeSession = useMemo(
+    () => sessions.find((item) => item.id === activeId) || null,
+    [sessions, activeId],
+  );
+
+  const messages = activeSession?.messages || [];
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function boot() {
+      const local = getAuthSession();
+      if (!local?.token || !local?.userId) {
+        router.replace("/login");
+        return;
+      }
+
+      try {
+        const sessionData = await session(local.token);
+        if (cancelled) return;
+        const normalized = {
+          token: local.token,
+          userId: sessionData.user_id,
+          tier: sessionData.tier,
+          sessionExpiresAt: sessionData.session_expires_at,
+        };
+        setAuth(normalized);
+
+        const existing = loadSessions(sessionData.user_id);
+        if (existing.length === 0) {
+          const first = createSession("New chat");
+          setSessions([first]);
+          setActiveId(first.id);
+          router.replace(`?chatId=${first.id}`);
+        } else {
+          setSessions(existing);
+          if (urlChatId && existing.some(s => s.id === urlChatId)) {
+            setActiveId(urlChatId);
+          } else {
+            setActiveId(existing[0].id);
+            router.replace(`?chatId=${existing[0].id}`);
+          }
+        }
+
+        await refreshSystemMeta();
+      } catch {
+        clearAuthSession();
+        router.replace("/login");
+        return;
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    }
+
+    boot();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (!auth?.userId) return;
+    saveSessions(auth.userId, sessions);
+  }, [auth, sessions]);
+
+  async function refreshSystemMeta() {
+    try {
+      const [h, l] = await Promise.all([health(), llmStatus()]);
+      setMeta({
+        health: `${h.store} | ${h.persistent_memory ? "persistent" : "memory-only"}`,
+        llm: `${l.backend}/${l.model} | policy=${l.policy} | ${l.reachable ? "reachable" : "offline"}`,
+      });
+    } catch {
+      setMeta({ health: "offline", llm: "offline" });
+    }
+  }
+
+  function withActiveSession(mutator) {
+    setSessions((prev) => {
+      const current = prev.find((item) => item.id === activeId);
+      if (!current) return prev;
+      const updated = mutator(current);
+      return upsertSession(prev, updated);
+    });
+  }
+
+  function appendMessage(role, text, metaPayload = null) {
+    const message = makeMessage(role, text, metaPayload);
+    withActiveSession((sessionItem) => {
+      const isFirstUserMessage = role === "user" && (sessionItem.messages || []).length === 0;
+      return {
+        ...sessionItem,
+        title: isFirstUserMessage ? normalizeTitle(text) : sessionItem.title,
+        updatedAt: Date.now(),
+        messages: [...(sessionItem.messages || []), message],
+      };
+    });
+    return message.id;
+  }
+
+  function patchMessage(messageId, patch) {
+    withActiveSession((sessionItem) => {
+      const nextMessages = (sessionItem.messages || []).map((message) => {
+        if (message.id !== messageId) return message;
+        const nextMeta = patch.meta ? { ...(message.meta || {}), ...patch.meta } : message.meta;
+        return { ...message, ...patch, meta: nextMeta };
+      });
+      return {
+        ...sessionItem,
+        updatedAt: Date.now(),
+        messages: nextMessages,
+      };
+    });
+  }
+
+  async function checkEvolution(messageId, recordId) {
+    if (!recordId) return;
+    try {
+      const data = await queryHistoryEvolution(recordId);
+      patchMessage(messageId, {
+        meta: {
+          evolution: {
+            changed: data.changed,
+            updated_answer: data.updated_answer,
+            frozen_snapshot: data.frozen_snapshot,
+            confidence_delta: data.confidence_delta,
+            checkedAt: Date.now(),
+          },
+        },
+      });
+    } catch (err) {
+      console.error("Evolution check failed:", err);
+    }
+  }
+
+  async function sendQuery() {
+    const text = draft.trim();
+    if (!text || sending || !auth?.userId) return;
+
+    setDraft("");
+    setSending(true);
+    setStatus("Thinking...");
+    appendMessage("user", text);
+
+    try {
+      const data = await query({
+        text,
+        user_id: auth.userId,
+        scope: "auto",
+        domain: "auto",
+      });
+
+      const botMessageId = appendMessage("assistant", "", {
+        confidence: data.confidence,
+        path: data.node_path,
+        scope: data.scope,
+        benefits_main_graph: data.benefits_main_graph,
+        llm_mode: data.llm_mode,
+        query_mode: data.query_mode,
+        history_record_id: data.history_record_id,
+      });
+
+      const words = String(data.answer || "").split(/\s+/).filter(Boolean);
+      let partial = "";
+      for (const word of words) {
+        partial = partial ? `${partial} ${word}` : word;
+        patchMessage(botMessageId, { text: partial });
+        await sleep(12);
+      }
+
+      patchMessage(botMessageId, {
+        text: data.answer,
+        meta: {
+          confidence: data.confidence,
+          path: data.node_path,
+          scope: data.scope,
+          benefits_main_graph: data.benefits_main_graph,
+          llm_mode: data.llm_mode,
+          query_mode: data.query_mode,
+          history_record_id: data.history_record_id,
+        },
+      });
+
+      setStatus(`Answered Â· scope=${data.scope} Â· mode=${data.query_mode}`);
+      setRefreshSignal((value) => value + 1);
+    } catch (err) {
+      appendMessage("assistant", `Request failed: ${err.message}`);
+      setStatus("Request failed");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function createNewChat() {
+    const fresh = createSession("New chat");
+    setSessions((prev) => upsertSession(prev, fresh));
+    switchSession(fresh.id);
+    setStatus("New chat started");
+  }
+
+  function switchSession(id) {
+    setActiveId(id);
+    router.push(`?chatId=${id}`);
+  }
+
+  function handleDeleteSession(id, event) {
+    event.stopPropagation();
+    const updated = deleteSession(sessions, id);
+    setSessions(updated);
+    if (updated.length === 0) {
+      const first = createSession("New chat");
+      setSessions([first]);
+      switchSession(first.id);
+    } else if (activeId === id) {
+      switchSession(updated[0].id);
+    }
+  }
+
+  async function doLogout() {
+    if (auth?.token) {
+      try {
+        await logout(auth.token);
+      } catch {
+        // Ignore logout failures and clear local session anyway.
+      }
+    }
+    clearAuthSession();
+    router.replace("/login");
+  }
+
+  if (checking) {
+    return <main className="page center">Checking session...</main>;
+  }
+
+  return (
+    <main className="page chat-layout">
+      <aside className="left-rail">
+        <div className="brand-box">
+          <h1>Paragi Studio</h1>
+          <p>Local-first memory agent with chat and graph introspection.</p>
+        </div>
+
+        <div className="meta-box">
+          <div>user: <strong>{auth?.userId}</strong></div>
+          <div>tier: <strong>{auth?.tier}</strong></div>
+          <div>health: {meta.health}</div>
+          <div>llm: {meta.llm}</div>
+        </div>
+
+        <div className="rail-actions">
+          <button onClick={createNewChat}>New Chat</button>
+          <button
+            onClick={async () => {
+              await refreshSystemMeta();
+              setRefreshSignal((value) => value + 1);
+              setStatus("Refreshed");
+            }}
+          >
+            Refresh
+          </button>
+          <button onClick={() => router.push("/graphs")}>Open Graphs</button>
+          <button onClick={doLogout}>Logout</button>
+        </div>
+
+        <div className="chat-session-list">
+          {sessions.map((item) => (
+            <div
+              key={item.id}
+              className={`session-item ${item.id === activeId ? "active" : ""}`}
+              onClick={() => switchSession(item.id)}
+              style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+            >
+              <div style={{ display: "grid", gap: "3px", overflow: "hidden" }}>
+                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.title}</span>
+                <small>{new Date(item.updatedAt).toLocaleString()}</small>
+              </div>
+              <button
+                className="mini-button"
+                style={{ marginLeft: "6px", flexShrink: 0, padding: "3px 6px", background: "transparent", border: "1px solid #dcc6a6", color: "#b83232" }}
+                onClick={(e) => handleDeleteSession(item.id, e)}
+                title="Delete Chat"
+              >
+                âœ•
+              </button>
+            </div>
+          ))}
+        </div>
+
+      </aside>
+
+      <section className="chat-main">
+        <header className="chat-header">
+          <strong>{activeSession?.title || "Chat"}</strong>
+          <span>{status}</span>
+        </header>
+
+        <section className="message-list">
+          {messages.length === 0 && (
+            <article className="bubble assistant">
+              <div className="role">Paragi</div>
+              <div className="body">Ready. Ask any question. Personal facts auto-store in personal memory.</div>
+            </article>
+          )}
+          {messages.map((message) => (
+            <article key={message.id} className={`bubble ${message.role === "user" ? "user" : "assistant"}`}>
+              <div className="role">{message.role === "user" ? "You" : "Paragi"}</div>
+              <div className="body">{message.text}</div>
+              {message.meta && (
+                <details className="trace-details">
+                  <summary>Details</summary>
+                  <div className="trace">
+                    <div>scope: {message.meta.scope} | query_mode: {message.meta.query_mode}</div>
+                    <div>confidence: {Number(message.meta.confidence || 0).toFixed(3)} | llm_mode: {message.meta.llm_mode}</div>
+                    <div>benefits_main_graph: {String(message.meta.benefits_main_graph)}</div>
+                    <div>path: {(message.meta.path || []).join(" -> ") || "-"}</div>
+                    {message.meta.history_record_id && (
+                      <div style={{ marginTop: "8px" }}>
+                        <button
+                          className="mini-button"
+                          onClick={() => checkEvolution(message.id, message.meta.history_record_id)}
+                        >
+                          Check for updates
+                        </button>
+                      </div>
+                    )}
+                    {message.meta.evolution && (
+                      <div className="evolution-panel">
+                        <strong>
+                          {message.meta.evolution.changed
+                            ? "âœ¨ Paragi knows more now!"
+                            : "Memory is consistent."}
+                        </strong>
+                        {message.meta.evolution.changed && (
+                          <div className="diff-view">
+                            <div className="diff-box">
+                              <small>Then:</small>
+                              <p>{message.meta.evolution.frozen_snapshot}</p>
+                            </div>
+                            <div className="diff-box">
+                              <small>Now:</small>
+                              <p>{message.meta.evolution.updated_answer}</p>
+                            </div>
+                          </div>
+                        )}
+                        <div className="evolution-meta">
+                          Confidence Î”: {message.meta.evolution.confidence_delta.toFixed(3)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </details>
+              )}
+            </article>
+          ))}
+        </section>
+
+        <footer className="composer">
+          <input
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") sendQuery();
+            }}
+            placeholder="Ask anything..."
+          />
+          <button onClick={sendQuery} disabled={sending}>{sending ? "Sending..." : "Send"}</button>
+        </footer>
+      </section>
+
+      <aside className="right-rail">
+        <GraphPanel userId={auth?.userId} refreshSignal={refreshSignal} />
+      </aside>
+    </main>
+  );
+}
+
+
+
+================================================
+FILE: components/GraphCanvas.jsx
+================================================
+ï»¿"use client";
+
+import { useMemo, useState } from "react";
+
+const WIDTH = 540;
+const HEIGHT = 270;
+const PAD = 22;
+
+function shorten(label, size = 16) {
+  if (!label) return "";
+  return label.length > size ? `${label.slice(0, size)}...` : label;
+}
+
+function hashText(value) {
+  let hash = 2166136261;
+  for (let idx = 0; idx < value.length; idx += 1) {
+    hash ^= value.charCodeAt(idx);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function buildPositions(nodes, edges) {
+  const positions = {};
+  const neighborMap = {};
+
+  nodes.forEach((node) => {
+    neighborMap[node.id] = new Set();
+  });
+
+  edges.forEach((edge) => {
+    if (!neighborMap[edge.source_id] || !neighborMap[edge.target_id]) return;
+    neighborMap[edge.source_id].add(edge.target_id);
+    neighborMap[edge.target_id].add(edge.source_id);
+  });
+
+  nodes.forEach((node, index) => {
+    const seedX = hashText(`${node.id}:${index}`);
+    const seedY = hashText(`${index}:${node.id}`);
+    positions[node.id] = {
+      x: PAD + (seedX % (WIDTH - PAD * 2)),
+      y: PAD + (seedY % (HEIGHT - PAD * 2)),
+    };
+  });
+
+  for (let step = 0; step < 90; step += 1) {
+    nodes.forEach((nodeA, idxA) => {
+      const a = positions[nodeA.id];
+      if (!a) return;
+
+      let fx = 0;
+      let fy = 0;
+
+      nodes.forEach((nodeB, idxB) => {
+        if (idxA === idxB) return;
+        const b = positions[nodeB.id];
+        if (!b) return;
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const dist = Math.hypot(dx, dy) || 0.001;
+        if (dist < 30) {
+          const repel = (30 - dist) * 0.08;
+          fx += (dx / dist) * repel;
+          fy += (dy / dist) * repel;
+        }
+      });
+
+      const neighbors = neighborMap[nodeA.id] || new Set();
+      neighbors.forEach((neighborId) => {
+        const b = positions[neighborId];
+        if (!b) return;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy) || 0.001;
+        const desired = 76;
+        const pull = (dist - desired) * 0.0048;
+        fx += (dx / dist) * pull;
+        fy += (dy / dist) * pull;
+      });
+
+      a.x = clamp(a.x + fx, PAD, WIDTH - PAD);
+      a.y = clamp(a.y + fy, PAD, HEIGHT - PAD);
+    });
+  }
+
+  return positions;
+}
+
+export default function GraphCanvas({ title, summary, nodeLimit = 26, edgeLimit = 60, showLabels = "hover" }) {
+  const [hoveredNode, setHoveredNode] = useState(null);
+  const [hoveredEdge, setHoveredEdge] = useState(null);
+
+  const { nodes, edges, positions } = useMemo(() => {
+    const selectedNodes = (summary?.nodes || []).slice(0, Math.max(8, nodeLimit));
+    const nodeSet = new Set(selectedNodes.map((node) => node.id));
+    const selectedEdges = (summary?.edges || []).filter(
+      (edge) => nodeSet.has(edge.source_id) && nodeSet.has(edge.target_id),
+    ).slice(0, Math.max(12, edgeLimit));
+
+    const pos = buildPositions(selectedNodes, selectedEdges);
+    return { nodes: selectedNodes, edges: selectedEdges, positions: pos };
+  }, [summary, nodeLimit, edgeLimit]);
+
+  const hoverText = hoveredNode?.description || hoveredEdge?.description || "Hover a node or edge for full details.";
+
+  return (
+    <section className="graph-card">
+      <header className="graph-card-head">
+        <strong>{title}</strong>
+        <span>
+          {(summary?.stats?.total_nodes || 0)} nodes Â· {(summary?.stats?.total_edges || 0)} edges
+        </span>
+      </header>
+
+      <svg className="graph-svg" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`${title} graph`}>
+        <rect x="0" y="0" width={WIDTH} height={HEIGHT} fill="transparent" rx="14" />
+
+        {edges.map((edge) => {
+          const from = positions[edge.source_id];
+          const to = positions[edge.target_id];
+          if (!from || !to) return null;
+          const isActive = hoveredEdge?.id === edge.id;
+          return (
+            <line
+              key={edge.id}
+              x1={from.x}
+              y1={from.y}
+              x2={to.x}
+              y2={to.y}
+              stroke={isActive ? "#d46220" : "#d6c099"}
+              strokeOpacity={0.95}
+              strokeWidth={Math.max(1.2, edge.strength * 4.2)}
+              onMouseEnter={() => {
+                setHoveredEdge(edge);
+                setHoveredNode(null);
+              }}
+              onMouseLeave={() => setHoveredEdge(null)}
+            />
+          );
+        })}
+
+        {nodes.map((node) => {
+          const p = positions[node.id];
+          if (!p) return null;
+          const active = hoveredNode?.id === node.id;
+          const renderLabel = showLabels === "always" || active;
+          return (
+            <g
+              key={node.id}
+              onMouseEnter={() => {
+                setHoveredNode(node);
+                setHoveredEdge(null);
+              }}
+              onMouseLeave={() => setHoveredNode(null)}
+            >
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={active ? 6.8 : 5.2}
+                fill={active ? "#b63c10" : "#8f4a21"}
+              />
+              {renderLabel && (
+                <text
+                  x={p.x + 7}
+                  y={p.y - 8}
+                  className="graph-label"
+                >
+                  {shorten(node.label, 14)}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {nodes.length === 0 && (
+          <text x="16" y="28" className="graph-empty">No nodes yet.</text>
+        )}
+      </svg>
+
+      <p className="graph-hover-text">{hoverText}</p>
+    </section>
+  );
+}
+
+
+
+================================================
+FILE: components/GraphPanel.jsx
+================================================
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import GraphCanvas from "@/components/GraphCanvas";
+import { graphSummary, graphUserSummary, userImpact } from "@/lib/api";
+
+function formatTime(timestampSeconds) {
+  if (!timestampSeconds) return "-";
+  return new Date(Number(timestampSeconds) * 1000).toLocaleString();
+}
+
+export default function GraphPanel({ userId, refreshSignal = 0 }) {
+  const [mode, setMode] = useState("contrib");
+  const [impact, setImpact] = useState(null);
+  const [main, setMain] = useState(null);
+  const [personal, setPersonal] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showMain, setShowMain] = useState(true);
+  const [showPersonal, setShowPersonal] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      if (!userId) return;
+      setLoading(true);
+      setError("");
+      try {
+        const [impactData, mainSummary, personalSummary] = await Promise.all([
+          userImpact(userId, 30),
+          graphUserSummary({ userId, nodeLimit: 70, edgeLimit: 120 }),
+          graphSummary({ scope: "personal", userId, nodeLimit: 70, edgeLimit: 120, minStrength: 0.01 }),
+        ]);
+        if (cancelled) return;
+        setImpact(impactData);
+        setMain(mainSummary);
+        setPersonal(personalSummary);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err.message || "Failed to load contribution data.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, refreshSignal]);
+
+  const summary = impact?.summary || {};
+  const personalItems = impact?.personal_memory?.items || [];
+  const mainItems = impact?.main_graph_impact?.items || [];
+
+  const statRows = useMemo(() => {
+    return [
+      ["Main impact records", summary.main_impact_records || 0],
+      ["Personal records", summary.personal_records || 0],
+      ["Nodes you added to main", summary.nodes_added_to_main_graph || 0],
+      ["Edges you added to main", summary.edges_added_to_main_graph || 0],
+      ["Credits earned", summary.credits_earned_from_impact || 0],
+    ];
+  }, [summary]);
+
+  return (
+    <div className="graph-panel">
+      <div className="graph-top-meta">
+        <strong>Knowledge Panel</strong>
+        <span>{loading ? "refreshing..." : `user: ${userId}`}</span>
+      </div>
+
+      {error && <div className="panel-error">{error}</div>}
+
+      <div className="panel-mode-switch">
+        <button
+          type="button"
+          className={mode === "contrib" ? "active" : ""}
+          onClick={() => setMode("contrib")}
+        >
+          Contributions
+        </button>
+        <button
+          type="button"
+          className={mode === "visual" ? "active" : ""}
+          onClick={() => setMode("visual")}
+        >
+          Graph Visual
+        </button>
+      </div>
+
+      <section className="impact-card">
+        <h4>Contribution Summary</h4>
+        <div className="impact-grid">
+          {statRows.map(([label, value]) => (
+            <div key={label} className="impact-row">
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {mode === "contrib" ? (
+        <>
+          <section className="contrib-card">
+            <header className="contrib-head">
+              <strong>Main Graph Contributions</strong>
+              <button type="button" onClick={() => setShowMain((value) => !value)}>
+                {showMain ? "Collapse" : "Expand"}
+              </button>
+            </header>
+            {showMain && (
+              <div className="contrib-list">
+                {mainItems.length === 0 && <div className="contrib-empty">No main-graph contributions yet.</div>}
+                {mainItems.map((item) => (
+                  <article key={item.record_id} className="contrib-row">
+                    <div className="contrib-title">{item.query}</div>
+                    <small>
+                      nodes={item.new_nodes_created} | edges={item.created_edges} | credits={item.credits_awarded}
+                    </small>
+                    <small>{item.domain} | {formatTime(item.stored_at)}</small>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="contrib-card">
+            <header className="contrib-head">
+              <strong>Personal Graph Contributions</strong>
+              <button type="button" onClick={() => setShowPersonal((value) => !value)}>
+                {showPersonal ? "Collapse" : "Expand"}
+              </button>
+            </header>
+            {showPersonal && (
+              <div className="contrib-list">
+                {personalItems.length === 0 && <div className="contrib-empty">No personal memory stored yet.</div>}
+                {personalItems.map((item, index) => (
+                  <article key={`${item.attribute_value}_${item.stored_at}_${index}`} className="contrib-row">
+                    <div className="contrib-title">{item.attribute_value}</div>
+                    <small>confidence={Number(item.confidence || 0).toFixed(3)}</small>
+                    <small>{formatTime(item.stored_at)}</small>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      ) : (
+        <>
+          <GraphCanvas
+            title="Your Main Graph Contributions"
+            summary={main}
+            nodeLimit={24}
+            edgeLimit={52}
+            showLabels="hover"
+          />
+          <GraphCanvas
+            title="Personal Graph Visual"
+            summary={personal}
+            nodeLimit={22}
+            edgeLimit={46}
+            showLabels="hover"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+
+
+================================================
+FILE: lib/api.js
+================================================
+const rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+let API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase;
+// Force HTTPS for onrender.com to avoid CORS-breaking 308 redirects
+if (API_BASE.includes("onrender.com") && API_BASE.startsWith("http://")) {
+  API_BASE = API_BASE.replace("http://", "https://");
+}
+console.log("DEBUG: Paragi API_BASE is set to:", API_BASE);
+
+async function request(path, options = {}) {
+  const method = options.method || "GET";
+  const headers = { ...options.headers };
+  
+  if (method !== "GET" && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+    cache: "no-store",
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const message = payload?.detail || payload?.message || `Request failed (${response.status})`;
+    throw new Error(message);
+  }
+  return payload;
+}
+
+export function getApiBase() {
+  return API_BASE;
+}
+
+export function register(payload) {
+  return request("/auth/register", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function login(payload) {
+  return request("/auth/login", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function googleLogin(credential) {
+  return request("/auth/google", { method: "POST", body: JSON.stringify({ credential }) });
+}
+
+export function logout(token) {
+  return request("/auth/logout", { method: "POST", body: JSON.stringify({ token }) });
+}
+
+export function session(token) {
+  return request(`/auth/session?token=${encodeURIComponent(token)}`);
+}
+
+export function query(payload) {
+  return request("/query", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function graphSummary({ scope, userId, nodeLimit = 80, edgeLimit = 180, minStrength = 0 }) {
+  const params = new URLSearchParams({
+    scope,
+    user_id: userId,
+    node_limit: String(nodeLimit),
+    edge_limit: String(edgeLimit),
+    min_strength: String(minStrength),
+  });
+  return request(`/graph/summary?${params.toString()}`);
+}
+
+export function graphUserSummary({ userId, nodeLimit = 80, edgeLimit = 180 }) {
+  const params = new URLSearchParams({
+    node_limit: String(nodeLimit),
+    edge_limit: String(edgeLimit),
+  });
+  return request(`/graph/user/${encodeURIComponent(userId)}/summary?${params.toString()}`);
+}
+
+export function userImpact(userId, limit = 40) {
+  return request(`/users/${encodeURIComponent(userId)}/impact?limit=${limit}`);
+}
+
+export function historyByUser(userId, limit = 100, scope = "all") {
+  const params = new URLSearchParams({ limit: String(limit), scope });
+  return request(`/query/history/user/${encodeURIComponent(userId)}?${params.toString()}`);
+}
+
+export function health() {
+  return request("/health");
+}
+
+export function llmStatus() {
+  return request("/llm/status");
+}
+
+export function queryHistoryEvolution(recordId) {
+  return request(`/query/history/${encodeURIComponent(recordId)}/evolution`);
+}
+
+
+
+================================================
+FILE: lib/auth.js
+================================================
+ï»¿const AUTH_KEY = "paragi_auth_v1";
+
+export function getAuthSession() {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(AUTH_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed?.token || !parsed?.userId) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthSession(payload) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(AUTH_KEY, JSON.stringify(payload));
+}
+
+export function clearAuthSession() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(AUTH_KEY);
+}
+
+
+
+================================================
+FILE: lib/chat-storage.js
+================================================
+const PREFIX = "paragi_chats_v1_";
+
+function keyFor(userId) {
+  return `${PREFIX}${userId}`;
+}
+
+export function loadSessions(userId) {
+  if (typeof window === "undefined") return [];
+  const raw = window.localStorage.getItem(keyFor(userId));
+  if (!raw) return [];
+  try {
+    const sessions = JSON.parse(raw);
+    return Array.isArray(sessions) ? sessions : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveSessions(userId, sessions) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(keyFor(userId), JSON.stringify(sessions));
+}
+
+export function createSession(seedText = "New chat") {
+  const now = Date.now();
+  return {
+    id: `chat_${now}_${Math.random().toString(36).slice(2, 8)}`,
+    title: normalizeTitle(seedText),
+    createdAt: now,
+    updatedAt: now,
+    messages: [],
+  };
+}
+
+export function normalizeTitle(text) {
+  const clean = String(text || "").trim();
+  if (!clean) return "New chat";
+  if (clean.length <= 36) return clean;
+  return `${clean.slice(0, 36)}...`;
+}
+
+export function upsertSession(sessions, nextSession) {
+  const items = [...sessions];
+  const idx = items.findIndex((item) => item.id === nextSession.id);
+  if (idx >= 0) {
+    items[idx] = nextSession;
+  } else {
+    items.unshift(nextSession);
+  }
+  return items.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+
+export function deleteSession(sessions, sessionId) {
+  return sessions.filter(item => item.id !== sessionId);
+}
+
+
