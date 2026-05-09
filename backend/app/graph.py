@@ -323,7 +323,7 @@ class GraphEngine:
             return []
         return self.store.list_outgoing(node.id)
 
-    def _get_node_by_label(self, label: str) -> NodeRecord | None:
+    def get_node_by_label(self, label: str) -> NodeRecord | None:
         node_id = make_node_id(normalize_label(label))
         if node_id not in self.bloom:
             return None
