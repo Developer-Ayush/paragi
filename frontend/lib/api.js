@@ -1,4 +1,4 @@
-﻿const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -34,6 +34,10 @@ export function register(payload) {
 
 export function login(payload) {
   return request("/auth/login", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function googleLogin(credential) {
+  return request("/auth/google", { method: "POST", body: JSON.stringify({ credential }) });
 }
 
 export function logout(token) {

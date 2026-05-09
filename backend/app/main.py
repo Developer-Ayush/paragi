@@ -6,6 +6,9 @@ from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
 from .auth_store import AuthStore
 from .config import Settings
 from .conversation_store import ConversationStore
@@ -102,6 +105,10 @@ class AuthLoginRequest(BaseModel):
 
 class AuthLogoutRequest(BaseModel):
     token: str = Field(..., min_length=1, max_length=128)
+
+
+class AuthGoogleRequest(BaseModel):
+    credential: str = Field(..., min_length=10)
 
 
 class EncoderTrainRequest(BaseModel):
@@ -228,10 +235,7 @@ app = FastAPI(
 app.include_router(translator_routes.router, prefix="/internal")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1228,6 +1232,30 @@ def auth_session(token: str, request: Request) -> dict:
 def auth_logout(payload: AuthLogoutRequest, request: Request) -> dict:
     removed = get_auth_store(request).logout(payload.token)
     return {"ok": removed}
+
+
+@app.post("/auth/google")
+def auth_google(payload: AuthGoogleRequest, request: Request) -> dict:
+    client_id = request.app.state.settings.google_client_id
+    if not client_id:
+        raise HTTPException(status_code=500, detail="Google authentication is not configured.")
+    try:
+        idinfo = id_token.verify_oauth2_token(payload.credential, google_requests.Request(), client_id)
+        email = idinfo.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Google token does not contain an email address.")
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(exc)}")
+    
+    auth = get_auth_store(request)
+    session = auth.google_login(email)
+    return {
+        "ok": True,
+        "token": session.token,
+        "user_id": session.user_id,
+        "tier": "free",
+        "session_expires_at": session.expires_at,
+    }
 
 
 @app.post("/users/register")

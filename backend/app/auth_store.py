@@ -186,3 +186,33 @@ class AuthStore:
             removed = self._sessions.pop(clean_token, None) is not None
             self._save()
             return removed
+
+    def google_login(self, email: str) -> AuthSession:
+        safe_user = sanitize_user_id(email.split('@')[0] if '@' in email else email)
+        now = time.time()
+        with self._lock:
+            user = self._users.get(safe_user)
+            if user is None:
+                user = AuthUser(
+                    user_id=safe_user,
+                    password_salt_b64=self._to_b64(b"oauth"),
+                    password_hash_b64=self._to_b64(b"oauth"),
+                    created_at=now,
+                    last_login_at=now,
+                )
+                self._users[safe_user] = user
+            else:
+                user.last_login_at = now
+
+            token = uuid.uuid4().hex
+            session = AuthSession(
+                token=token,
+                user_id=safe_user,
+                created_at=now,
+                last_seen_at=now,
+                expires_at=now + SESSION_TTL_SECONDS,
+            )
+            self._sessions[token] = session
+            self._prune_expired_sessions()
+            self._save()
+            return session

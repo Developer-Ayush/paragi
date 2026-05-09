@@ -10,4 +10,4 @@ beautifulsoup4
 spacy
 ollama
 requests
-
+google-auth

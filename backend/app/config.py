@@ -40,6 +40,7 @@ class Settings:
     llm_keep_alive: str
     llm_policy: str
     llm_api_key: str
+    google_client_id: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -77,6 +78,7 @@ class Settings:
         if llm_policy not in {"always", "smart", "unknown_only"}:
             llm_policy = "smart"
         llm_api_key = os.getenv("GROQ_API_KEY", "").strip() or os.getenv("PARAGI_LLM_API_KEY", "").strip()
+        google_client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 
         settings = cls(
             data_dir=data_dir,
@@ -112,6 +114,7 @@ class Settings:
             llm_keep_alive=llm_keep_alive,
             llm_policy=llm_policy,
             llm_api_key=llm_api_key,
+            google_client_id=google_client_id,
         )
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         return settings

@@ -1,32 +1,24 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getApiBase, login, register } from "@/lib/api";
+import { getApiBase, googleLogin } from "@/lib/api";
 import { setAuthSession } from "@/lib/auth";
+import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState("login");
-  const [userId, setUserId] = useState("guest");
-  const [password, setPassword] = useState("pass1234");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const apiBase = useMemo(() => getApiBase(), []);
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
-  async function submit() {
-    const cleanUser = userId.trim();
-    if (!cleanUser || !password.trim()) {
-      setError("User ID and password are required.");
-      return;
-    }
-
+  async function handleGoogleSuccess(credentialResponse) {
     setLoading(true);
     setError("");
     try {
-      const payload = { user_id: cleanUser, password };
-      const data = mode === "register" ? await register(payload) : await login(payload);
+      const data = await googleLogin(credentialResponse.credential);
       setAuthSession({
         token: data.token,
         userId: data.user_id,
@@ -35,44 +27,41 @@ export default function LoginPage() {
       });
       router.replace("/chat");
     } catch (err) {
-      setError(err.message || "Request failed");
+      setError(err.message || "Google authentication failed");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="page login-page">
-      <section className="login-card">
-        <h1>Paragi Studio</h1>
-        <p>Sign in to keep local chat sessions and graph memory views.</p>
+    <GoogleOAuthProvider clientId={clientId}>
+      <main className="page login-page">
+        <section className="login-card">
+          <h1>Paragi Studio</h1>
+          <p>Sign in to keep local chat sessions and graph memory views.</p>
 
-        <div className="mode-switch">
-          <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Login</button>
-          <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Register</button>
-        </div>
+          {error && <div className="panel-error">{error}</div>}
 
-        <label>User ID</label>
-        <input value={userId} onChange={(event) => setUserId(event.target.value)} />
+          <div style={{ marginTop: "2rem", display: "flex", justifyContent: "center" }}>
+            {loading ? (
+              <p>Signing in...</p>
+            ) : (
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setError("Google login widget failed to load or connect.")}
+                useOneTap
+              />
+            )}
+          </div>
 
-        <label>Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") submit();
-          }}
-        />
-
-        {error && <div className="panel-error">{error}</div>}
-
-        <button className="primary" onClick={submit} disabled={loading}>
-          {loading ? "Please wait..." : mode === "register" ? "Create account" : "Sign in"}
-        </button>
-
-        <small>Backend: {apiBase}</small>
-      </section>
-    </main>
+          <small style={{ marginTop: "2rem", display: "block" }}>Backend: {apiBase}</small>
+          {!clientId && (
+            <small style={{ color: "red", display: "block", marginTop: "0.5rem" }}>
+              Missing NEXT_PUBLIC_GOOGLE_CLIENT_ID in environment!
+            </small>
+          )}
+        </section>
+      </main>
+    </GoogleOAuthProvider>
   );
 }
