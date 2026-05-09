@@ -81,12 +81,14 @@ class GraphEngine:
         *,
         edge_strength_floor: float,
         edge_decay_per_cycle: float,
+        edge_prune_threshold: float = 0.005,
     ) -> None:
         self.store = store
         self.bloom = bloom
         self.bloom_path = bloom_path
         self.edge_strength_floor = edge_strength_floor
         self.edge_decay_per_cycle = edge_decay_per_cycle
+        self.edge_prune_threshold = edge_prune_threshold
         self.store_kind = type(store).__name__
 
     @classmethod
@@ -111,6 +113,7 @@ class GraphEngine:
             bloom_path=settings.bloom_path,
             edge_strength_floor=settings.edge_strength_floor,
             edge_decay_per_cycle=settings.edge_decay_per_cycle,
+            edge_prune_threshold=settings.edge_prune_threshold,
         )
         engine._rebuild_bloom_if_needed()
         return engine
@@ -697,7 +700,7 @@ class GraphEngine:
     def prune_edges(self, threshold: float | None = None) -> int:
         """Remove edges below the strength threshold."""
         if threshold is None:
-            threshold = self.edge_strength_floor
+            threshold = self.edge_prune_threshold
 
         count = 0
         for edge_id in self.store.list_edge_ids():
@@ -707,16 +710,16 @@ class GraphEngine:
                 count += 1
         return count
 
-    def deduplicate_graph(self) -> dict[str, int]:
+    def deduplicate_graph(self, semantic_threshold: float = 0.95, encoder: any = None) -> dict[str, int]:
         """
         Deduplicate nodes with identical labels and edges between same source/target.
+        Also performs semantic deduplication for near-identical concepts.
         Returns a summary of merged items.
         """
         nodes_merged = 0
         edges_merged = 0
 
-        # 1. Deduplicate nodes
-        # Use label normalization as the merging criterion
+        # 1. Deduplicate nodes by exact normalized label
         label_to_node_id: dict[str, str] = {}
         all_node_ids = list(self.store.iter_node_ids())
 
@@ -792,6 +795,85 @@ class GraphEngine:
                 nodes_merged += 1
             else:
                 label_to_node_id[norm_label] = node_id
+
+        # 1b. Semantic Deduplication
+        if semantic_threshold < 1.0:
+            # We need an encoder to get semantic vectors
+            # This is a bit heavy, so we only do it if there are enough nodes
+            remaining_nodes = list(self.store.iter_node_ids())
+            if len(remaining_nodes) > 1:
+                if encoder is None:
+                    from .own_encoder import OwnEncoder
+                    encoder = OwnEncoder()
+
+                node_records = []
+                for nid in remaining_nodes:
+                    node = self.store.get_node(nid)
+                    if node:
+                        node_records.append(node)
+
+                # Get vectors for all nodes
+                vectors = {}
+                for node in node_records:
+                    res = encoder.encode(node.label)
+                    vectors[node.id] = res.semantic_vector
+
+                # Compare each pair (O(N^2) - consider optimizing if N is large)
+                to_merge: list[tuple[str, str]] = []
+                processed = set()
+                for i in range(len(node_records)):
+                    nid1 = node_records[i].id
+                    if nid1 in processed: continue
+                    v1 = vectors[nid1]
+                    for j in range(i + 1, len(node_records)):
+                        nid2 = node_records[j].id
+                        if nid2 in processed: continue
+                        v2 = vectors[nid2]
+
+                        # Cosine similarity
+                        dot = sum(a * b for a, b in zip(v1, v2))
+                        if dot > semantic_threshold:
+                            to_merge.append((nid1, nid2)) # merge nid2 into nid1
+                            processed.add(nid2)
+
+                for surviving_id, redundant_id in to_merge:
+                    # Repoint edges from redundant to surviving
+                    for edge in self.store.list_incoming(redundant_id):
+                        new_edge_id = make_edge_id(edge.source, surviving_id)
+                        existing_new = self.store.get_edge(new_edge_id)
+                        if existing_new:
+                            new_strength = max(existing_new.strength, edge.strength)
+                            self.store.update_edge_strength(new_edge_id, new_strength, increment_recall=False)
+                            edges_merged += 1
+                        else:
+                            repointed = EdgeRecord(
+                                id=new_edge_id, source=edge.source, target=surviving_id,
+                                type=edge.type, vector=edge.vector, strength=edge.strength,
+                                emotional_weight=edge.emotional_weight, recall_count=edge.recall_count,
+                                stability=edge.stability, last_activated=edge.last_activated, created=edge.created
+                            )
+                            self.store.upsert_edge(repointed)
+                        self.store.delete_edge(edge.id)
+
+                    for edge in self.store.list_outgoing(redundant_id):
+                        new_edge_id = make_edge_id(surviving_id, edge.target)
+                        existing_new = self.store.get_edge(new_edge_id)
+                        if existing_new:
+                            new_strength = max(existing_new.strength, edge.strength)
+                            self.store.update_edge_strength(new_edge_id, new_strength, increment_recall=False)
+                            edges_merged += 1
+                        else:
+                            repointed = EdgeRecord(
+                                id=new_edge_id, source=surviving_id, target=edge.target,
+                                type=edge.type, vector=edge.vector, strength=edge.strength,
+                                emotional_weight=edge.emotional_weight, recall_count=edge.recall_count,
+                                stability=edge.stability, last_activated=edge.last_activated, created=edge.created
+                            )
+                            self.store.upsert_edge(repointed)
+                        self.store.delete_edge(edge.id)
+
+                    self.store.delete_node(redundant_id)
+                    nodes_merged += 1
 
         # 2. Deduplicate edges (redundant if make_edge_id is stable, but good for consistency)
         # The repointing logic above already handles most cases by checking for existing edges.

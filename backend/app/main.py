@@ -18,6 +18,7 @@ from .external_sources import ConceptNetConnector, SemanticScholarConnector, Wik
 from .graph import GraphEngine
 from .graph_translator import GraphTranslator
 from .crawler import ParagiCrawler
+from .metrics_store import MetricsStore
 from .llm_refiner import LLMRefiner, RefineResult
 from .models import EdgeType
 from .own_decoder import OwnDecoder
@@ -156,6 +157,7 @@ def _initialize_state(app: FastAPI, *, start_workers: bool) -> None:
     user_state = UserStateStore(settings.user_state_path)
     auth_store = AuthStore(settings.auth_users_path, settings.auth_sessions_path)
     personal_graphs = PersonalGraphManager(settings)
+    metrics_store = MetricsStore(settings.metrics_path)
     llm_refiner = LLMRefiner(
         backend=settings.llm_backend,
         model=settings.llm_model,
@@ -180,6 +182,7 @@ def _initialize_state(app: FastAPI, *, start_workers: bool) -> None:
     app.state.user_state = user_state
     app.state.auth_store = auth_store
     app.state.personal_graphs = personal_graphs
+    app.state.metrics_store = metrics_store
     app.state.llm_refiner = llm_refiner
     app.state.translator = translator
     app.state.crawler = crawler
@@ -290,6 +293,11 @@ def get_llm_refiner(request: Request) -> LLMRefiner:
     return request.app.state.llm_refiner
 
 
+def get_metrics_store(request: Request) -> MetricsStore:
+    _ = get_graph(request)
+    return request.app.state.metrics_store
+
+
 def get_crawler(request: Request) -> ParagiCrawler:
     _ = get_graph(request)
     return request.app.state.crawler
@@ -344,11 +352,13 @@ def root_info() -> dict:
 def health(request: Request) -> dict:
     graph = get_graph(request)
     settings = request.app.state.settings
+    metrics = get_metrics_store(request)
     return {
         "ok": True,
         "store": graph.store_kind,
         "persistent_memory": graph.store_kind != "InMemoryGraphStore",
         "hdf5_path": str(settings.hdf5_path),
+        "metrics": metrics.get_summary(window_seconds=86400) # Last 24h
     }
 
 
@@ -832,6 +842,14 @@ def query(payload: QueryRequest, request: Request) -> dict:
     )
     # Reinforce typo corrections only after a meaningful answer confidence.
     rewriter.reinforce(rewrite, reward=result.confidence)
+
+    # Log metrics
+    metrics = get_metrics_store(request)
+    metrics.log_metric(
+        fallback=result.used_fallback,
+        shortcut=result.shortcut_applied,
+        domain=inferred_domain
+    )
 
     get_encoder_training_store(request).append(
         raw_text=rewritten_text,

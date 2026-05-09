@@ -141,6 +141,109 @@ class SemanticScholarConnector(ExternalKnowledgeConnector):
         return []
 
 
+class PubMedConnector(ExternalKnowledgeConnector):
+    name = "pubmed"
+    endpoint = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+    summary_endpoint = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+
+    def fetch_relation(self, source: str, target: str, timeout_seconds: float = 2.0) -> List[RelationCandidate]:
+        source = normalize_label(source)
+        target = normalize_label(target)
+        query = f"{source}[mesh] AND {target}[mesh]"
+        params = {
+            "db": "pubmed",
+            "term": query,
+            "retmax": "5",
+            "retmode": "json",
+        }
+        url = self.endpoint + "?" + urllib.parse.urlencode(params)
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "paragi-prototype/0.3"})
+            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+
+            ids = payload.get("esearchresult", {}).get("idlist", [])
+            if ids:
+                return [RelationCandidate(
+                    source=source, target=target,
+                    edge_type=EdgeType.CORRELATES,
+                    strength=0.75,
+                    source_name=self.name
+                )]
+        except Exception:
+            pass
+        return []
+
+class ArxivConnector(ExternalKnowledgeConnector):
+    name = "arxiv"
+    endpoint = "http://export.arxiv.org/api/query"
+
+    def fetch_relation(self, source: str, target: str, timeout_seconds: float = 2.0) -> List[RelationCandidate]:
+        source = normalize_label(source)
+        target = normalize_label(target)
+        query = f"all:{source} AND all:{target}"
+        params = {
+            "search_query": query,
+            "max_results": "3",
+        }
+        url = self.endpoint + "?" + urllib.parse.urlencode(params)
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "paragi-prototype/0.3"})
+            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+                # Arxiv returns XML, just check if source and target are in the response
+                content = resp.read().decode("utf-8").lower()
+                if source in content and target in content:
+                    return [RelationCandidate(
+                        source=source, target=target,
+                        edge_type=EdgeType.CORRELATES,
+                        strength=0.70,
+                        source_name=self.name
+                    )]
+        except Exception:
+            pass
+        return []
+
+class CourtListenerConnector(ExternalKnowledgeConnector):
+    name = "courtlistener"
+    endpoint = "https://www.courtlistener.com/api/rest/v3/search/"
+
+    def fetch_relation(self, source: str, target: str, timeout_seconds: float = 2.0) -> List[RelationCandidate]:
+        source = normalize_label(source)
+        target = normalize_label(target)
+        query = f'"{source}" AND "{target}"'
+        params = {
+            "q": query,
+        }
+        url = self.endpoint + "?" + urllib.parse.urlencode(params)
+        try:
+            # Requires token usually, but some search might be public or mocked for now
+            req = urllib.request.Request(url, headers={"User-Agent": "paragi-prototype/0.3"})
+            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+                if payload.get("count", 0) > 0:
+                    return [RelationCandidate(
+                        source=source, target=target,
+                        edge_type=EdgeType.IS_A, # Legal often defines things
+                        strength=0.65,
+                        source_name=self.name
+                    )]
+        except Exception:
+            pass
+        return []
+
+class NewsRSSConnector(ExternalKnowledgeConnector):
+    name = "news_rss"
+    feeds = [
+        "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+        "http://feeds.bbci.co.uk/news/rss.xml"
+    ]
+
+    def fetch_relation(self, source: str, target: str, timeout_seconds: float = 2.0) -> List[RelationCandidate]:
+        # Implementation would fetch feeds and look for co-occurrence
+        # Mocking for now to show structure
+        return []
+
+
 class WikipediaConnector(ExternalKnowledgeConnector):
     name = "wikipedia"
     endpoint = "https://en.wikipedia.org/api/rest_v1/page/summary/"

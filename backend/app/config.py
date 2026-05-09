@@ -11,6 +11,7 @@ class Settings:
     hdf5_path: Path
     bloom_path: Path
     query_history_path: Path
+    metrics_path: Path
     expansion_queue_path: Path
     user_state_path: Path
     auth_users_path: Path
@@ -19,6 +20,7 @@ class Settings:
     bloom_error_rate: float
     edge_decay_per_cycle: float
     edge_strength_floor: float
+    edge_prune_threshold: float
     decay_interval_seconds: float
     expansion_interval_seconds: float
     prefer_hdf5: bool
@@ -45,6 +47,7 @@ class Settings:
         hdf5_path = Path(os.getenv("PARAGI_HDF5_PATH", data_dir / "memory.h5"))
         bloom_path = Path(os.getenv("PARAGI_BLOOM_PATH", data_dir / "nodes.bloom.json"))
         query_history_path = Path(os.getenv("PARAGI_QUERY_HISTORY_PATH", data_dir / "query_history.jsonl"))
+        metrics_path = Path(os.getenv("PARAGI_METRICS_PATH", data_dir / "metrics.jsonl"))
         expansion_queue_path = Path(os.getenv("PARAGI_EXPANSION_QUEUE_PATH", data_dir / "expansion_queue.json"))
         user_state_path = Path(os.getenv("PARAGI_USER_STATE_PATH", data_dir / "users_state.json"))
         auth_users_path = Path(os.getenv("PARAGI_AUTH_USERS_PATH", data_dir / "auth_users.json"))
@@ -78,6 +81,7 @@ class Settings:
             hdf5_path=hdf5_path,
             bloom_path=bloom_path,
             query_history_path=query_history_path,
+            metrics_path=metrics_path,
             expansion_queue_path=expansion_queue_path,
             user_state_path=user_state_path,
             auth_users_path=auth_users_path,
@@ -86,6 +90,7 @@ class Settings:
             bloom_error_rate=float(os.getenv("PARAGI_BLOOM_ERROR_RATE", "0.001")),
             edge_decay_per_cycle=float(os.getenv("PARAGI_EDGE_DECAY_PER_CYCLE", "0.005")),
             edge_strength_floor=float(os.getenv("PARAGI_EDGE_STRENGTH_FLOOR", "0.001")),
+            edge_prune_threshold=float(os.getenv("PARAGI_EDGE_PRUNE_THRESHOLD", "0.005")),
             decay_interval_seconds=float(os.getenv("PARAGI_DECAY_INTERVAL_SECONDS", "30")),
             expansion_interval_seconds=float(os.getenv("PARAGI_EXPANSION_INTERVAL_SECONDS", "30")),
             prefer_hdf5=os.getenv("PARAGI_PREFER_HDF5", "1") == "1",
