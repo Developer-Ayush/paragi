@@ -235,14 +235,18 @@ app = FastAPI(
     version="0.4.0",
     lifespan=lifespan,
 )
-app.include_router(translator_routes.router, prefix="/internal")
+
+# CORS must be added before routers to ensure it catches all preflights
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+app.include_router(translator_routes.router, prefix="/internal")
 
 
 def get_graph(request: Request) -> GraphEngine:

@@ -1,5 +1,9 @@
 const rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
-const API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase;
+let API_BASE = rawApiBase.endsWith('/') ? rawApiBase.slice(0, -1) : rawApiBase;
+// Force HTTPS for onrender.com to avoid CORS-breaking 308 redirects
+if (API_BASE.includes("onrender.com") && API_BASE.startsWith("http://")) {
+  API_BASE = API_BASE.replace("http://", "https://");
+}
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
