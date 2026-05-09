@@ -31,6 +31,7 @@ class DecayWorker:
             cycle_count += 1
             if cycle_count >= dedup_cycle_interval:
                 self.graph.deduplicate_graph()
+                self.graph.semantic_deduplication()
                 self.graph.prune_edges()
                 cycle_count = 0
 

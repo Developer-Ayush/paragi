@@ -80,12 +80,14 @@ class GraphEngine:
         bloom_path: Path,
         *,
         edge_strength_floor: float,
+        edge_prune_threshold: float = 0.002,
         edge_decay_per_cycle: float,
     ) -> None:
         self.store = store
         self.bloom = bloom
         self.bloom_path = bloom_path
         self.edge_strength_floor = edge_strength_floor
+        self.edge_prune_threshold = edge_prune_threshold
         self.edge_decay_per_cycle = edge_decay_per_cycle
         self.store_kind = type(store).__name__
 
@@ -110,6 +112,7 @@ class GraphEngine:
             bloom=bloom,
             bloom_path=settings.bloom_path,
             edge_strength_floor=settings.edge_strength_floor,
+            edge_prune_threshold=settings.edge_prune_threshold,
             edge_decay_per_cycle=settings.edge_decay_per_cycle,
         )
         engine._rebuild_bloom_if_needed()
@@ -697,7 +700,7 @@ class GraphEngine:
     def prune_edges(self, threshold: float | None = None) -> int:
         """Remove edges below the strength threshold."""
         if threshold is None:
-            threshold = self.edge_strength_floor
+            threshold = self.edge_prune_threshold
 
         count = 0
         for edge_id in self.store.list_edge_ids():
@@ -706,6 +709,97 @@ class GraphEngine:
                 self.store.delete_edge(edge_id)
                 count += 1
         return count
+
+    def semantic_deduplication(self, threshold: float = 0.95) -> dict[str, int]:
+        """
+        Identify semantically similar nodes and merge them.
+        Uses labels and their hash/semantic vectors.
+        """
+        from .own_encoder import OwnEncoder
+        encoder = OwnEncoder() # Default encoder for similarity
+
+        merged_count = 0
+        all_node_ids = list(self.store.iter_node_ids())
+        nodes = []
+        for nid in all_node_ids:
+            node = self.store.get_node(nid)
+            if node:
+                nodes.append(node)
+
+        if not nodes:
+            return {"semantic_merges": 0}
+
+        # Encode all nodes
+        embeddings = []
+        for node in nodes:
+            res = encoder.encode(node.label)
+            embeddings.append(res.semantic_vector)
+
+        # O(N^2) comparison - fine for small graphs, but needs optimization for large ones
+        to_merge: dict[str, str] = {} # target_id -> surviving_id
+        merged_ids = set()
+
+        for i in range(len(nodes)):
+            if nodes[i].id in merged_ids:
+                continue
+            for j in range(i + 1, len(nodes)):
+                if nodes[j].id in merged_ids:
+                    continue
+
+                # Cosine similarity
+                vec1 = embeddings[i]
+                vec2 = embeddings[j]
+                sim = sum(a * b for a, b in zip(vec1, vec2))
+
+                if sim > threshold:
+                    # Merge nodes[j] into nodes[i]
+                    to_merge[nodes[j].id] = nodes[i].id
+                    merged_ids.add(nodes[j].id)
+
+        # Perform merges
+        for target_id, survivor_id in to_merge.items():
+            self._merge_nodes(target_id, survivor_id)
+            merged_count += 1
+
+        return {"semantic_merges": merged_count}
+
+    def _merge_nodes(self, victim_id: str, survivor_id: str) -> None:
+        """Helper to merge victim into survivor."""
+        # Repoint incoming
+        incoming = self.store.list_incoming(victim_id)
+        for edge in incoming:
+            new_edge_id = make_edge_id(edge.source, survivor_id)
+            existing = self.store.get_edge(new_edge_id)
+            if existing:
+                self.store.update_edge_strength(new_edge_id, max(existing.strength, edge.strength), increment_recall=False)
+            else:
+                repointed = EdgeRecord(
+                    id=new_edge_id, source=edge.source, target=survivor_id,
+                    type=edge.type, vector=edge.vector, strength=edge.strength,
+                    emotional_weight=edge.emotional_weight, recall_count=edge.recall_count,
+                    stability=edge.stability, last_activated=edge.last_activated, created=edge.created,
+                )
+                self.store.upsert_edge(repointed)
+            self.store.delete_edge(edge.id)
+
+        # Repoint outgoing
+        outgoing = self.store.list_outgoing(victim_id)
+        for edge in outgoing:
+            new_edge_id = make_edge_id(survivor_id, edge.target)
+            existing = self.store.get_edge(new_edge_id)
+            if existing:
+                self.store.update_edge_strength(new_edge_id, max(existing.strength, edge.strength), increment_recall=False)
+            else:
+                repointed = EdgeRecord(
+                    id=new_edge_id, source=survivor_id, target=edge.target,
+                    type=edge.type, vector=edge.vector, strength=edge.strength,
+                    emotional_weight=edge.emotional_weight, recall_count=edge.recall_count,
+                    stability=edge.stability, last_activated=edge.last_activated, created=edge.created,
+                )
+                self.store.upsert_edge(repointed)
+            self.store.delete_edge(edge.id)
+
+        self.store.delete_node(victim_id)
 
     def deduplicate_graph(self) -> dict[str, int]:
         """

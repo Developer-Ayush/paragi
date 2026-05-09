@@ -19,6 +19,7 @@ class Settings:
     bloom_error_rate: float
     edge_decay_per_cycle: float
     edge_strength_floor: float
+    edge_prune_threshold: float
     decay_interval_seconds: float
     expansion_interval_seconds: float
     prefer_hdf5: bool
@@ -86,6 +87,7 @@ class Settings:
             bloom_error_rate=float(os.getenv("PARAGI_BLOOM_ERROR_RATE", "0.001")),
             edge_decay_per_cycle=float(os.getenv("PARAGI_EDGE_DECAY_PER_CYCLE", "0.005")),
             edge_strength_floor=float(os.getenv("PARAGI_EDGE_STRENGTH_FLOOR", "0.001")),
+            edge_prune_threshold=float(os.getenv("PARAGI_EDGE_PRUNE_THRESHOLD", "0.002")),
             decay_interval_seconds=float(os.getenv("PARAGI_DECAY_INTERVAL_SECONDS", "30")),
             expansion_interval_seconds=float(os.getenv("PARAGI_EXPANSION_INTERVAL_SECONDS", "30")),
             prefer_hdf5=os.getenv("PARAGI_PREFER_HDF5", "1") == "1",

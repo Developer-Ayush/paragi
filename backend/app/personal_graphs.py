@@ -51,6 +51,7 @@ class PersonalGraphManager:
             bloom=bloom,
             bloom_path=bloom_path,
             edge_strength_floor=self.settings.edge_strength_floor,
+            edge_prune_threshold=self.settings.edge_prune_threshold,
             edge_decay_per_cycle=self.settings.edge_decay_per_cycle,
         )
         return graph

@@ -223,9 +223,34 @@ class ParagiCrawler:
 
             res = self.translator.encode(chunk)
             if res and res.get("confidence", 0) > 0.4:
+                source = res["source"]
+                target = res["target"]
+                etype = EdgeType(res["relation"])
+                strength = res["confidence"]
+
+                # Paper §18: Contradiction detection at ingestion
+                # We check if there's an existing path from source to a NOT(target)
+                # For simplicity, we check if target has an antonym or if we can find contradictory paths
+                # Basic implementation: Check if there's already a strong path to a known alternative
+                # For now, we use the graph's contradiction_vote if we have a negative candidate.
+                # Since we don't have a 'negative candidate' yet, we just check if the new edge
+                # would strongly conflict with existing knowledge (e.g. CAUSES vs doesn't cause).
+
+                # If etype is CAUSES, check if there's already an IS_A or CAUSES to something contradictory
+                # This needs more domain knowledge, but we can at least log it.
+
+                # Simple check: does the source already have a strong edge to a different target of the same type?
+                # This is a very weak proxy for contradiction, but it starts the Step 18 implementation.
+                existing_edges = self.graph.get_neighbors(source)
+                for ext in existing_edges:
+                    if ext.type == etype and ext.target != self.graph.create_or_get_node(target).id:
+                        if ext.strength > 0.8:
+                            logger.warning(f"Potential contradiction detected at ingestion: {source} {etype} {target} "
+                                           f"conflicts with existing high-strength edge to {self.graph.get_node_label(ext.target)}")
+
                 self.graph.create_edge(
-                    source_label=res["source"],
-                    target_label=res["target"],
-                    edge_type=EdgeType(res["relation"]),
-                    strength=res["confidence"]
+                    source_label=source,
+                    target_label=target,
+                    edge_type=etype,
+                    strength=strength
                 )
