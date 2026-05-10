@@ -1,19 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          {
-            key: "Cross-Origin-Opener-Policy",
-            value: "same-origin-allow-popups", // Required for Google One Tap / OAuth
-          },
-        ],
-      },
-    ];
-  },
+  // Removed strict Cross-Origin-Opener-Policy to allow Firebase Auth popups
 };
 
 export default nextConfig;
