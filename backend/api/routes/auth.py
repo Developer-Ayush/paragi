@@ -16,7 +16,6 @@ class AuthResponse(BaseModel):
     user_id: str
     tier: str
     token: str
-
 class TokenRequest(BaseModel):
     token: str
 
@@ -51,6 +50,17 @@ async def session(token: Optional[str] = None):
 @router.post('/auth/logout')
 async def logout(req: TokenRequest):
     return {'ok': True}
+
+@router.post('/auth/google', response_model=AuthResponse)
+async def google_login(req: Dict[str, Any]):
+    # In production, you would verify the JWT here using google-auth library.
+    # For now, we trust the frontend credential for the prototype flow.
+    # Note: credential should be verified in a real multi-tenant app.
+    user_id = "developer" # Mocked or extracted from JWT
+    tier = "pro"
+    token = f"google_token_{user_id}"
+    _SESSIONS[token] = {'user_id': user_id, 'tier': tier}
+    return AuthResponse(user_id=user_id, tier=tier, token=token)
 
 from api.server import agent
 
