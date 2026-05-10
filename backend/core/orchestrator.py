@@ -38,8 +38,16 @@ class CognitiveOrchestrator:
         """
         log.info(f"Processing query: {text} (user: {user_id})")
         
-        # 1. Encode: Human Language -> SemanticIR
-        ir = self.encoder.encode(text)
+        # 1. Encode: Human Language -> SemanticIR (LLM-First approach)
+        if self.kernel.llm and self.kernel.llm.backend != "none":
+            parsed = self.kernel.llm.parse_intent(text)
+            # Map LLM intent back to IR (Hybrid mode)
+            ir = self.encoder.encode(text) 
+            ir.intent = parsed.kind
+            if parsed.entities:
+                ir.entities = list(set(ir.entities + parsed.entities))
+        else:
+            ir = self.encoder.encode(text)
         
         # ── OS Layer: Intent-Based Routing ────────────────────────────────────
         # Determine if this is a personal fact or a world-knowledge query
@@ -67,24 +75,20 @@ class CognitiveOrchestrator:
         reasoning_result = self.reasoning.reason(ir)
         
         # 4. Decode & Format: ReasoningResult -> Final API Output
-        # Extract primary answer from reasoner result
         chains = reasoning_result.get("chains", [])
         
         # Determine base answer
         if ir.intent == "greeting":
             answer = "Hello. Paragi Cognitive Runtime is online. How can I assist with your knowledge graph today?"
-        elif chains:
-            # Generate actual language from graph chains
-            answer = self.generator.generate(reasoning_result, original_query=text)
         else:
-            # Trigger autonomous expansion for unknown concepts (§4.2)
-            all_concepts = list(set(ir.concepts + ir.entities))
-            if all_concepts:
+            # Generate actual language (Generator will fallback to LLM knowledge if chains are empty)
+            answer = self.generator.generate(reasoning_result, original_query=text)
+            
+            # Trigger background expansion if knowledge was insufficient
+            if not chains:
+                all_concepts = list(set(ir.concepts + ir.entities))
                 for concept in all_concepts:
                     self.kernel.expansion.enqueue(concept)
-                answer = "I don't have enough information to form a reasoning chain right now. I've initiated an autonomous knowledge expansion for these concepts. Ask me again in a few moments."
-            else:
-                answer = "I don't have enough information to form a reasoning chain."
             
         response = self.formatter.format(
             text=answer,
