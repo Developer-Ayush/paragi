@@ -3,7 +3,7 @@ decoder/language_generator.py — Fluency layer and text generation.
 """
 from __future__ import annotations
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from utils.llm_refiner import LLMRefiner
 from .explanation_builder import ExplanationBuilder
 

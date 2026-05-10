@@ -48,11 +48,17 @@ class CausalReasoner:
             for src_id, edge_type, tgt_id in triples:
                 src_node = self.graph.get_node(src_id)
                 tgt_node = self.graph.get_node(tgt_id)
-                if src_node and tgt_node:
-                    # Convert edge type to human-readable verb
-                    from core.constants import EDGE_RELATION_TEXT
-                    rel_text = EDGE_RELATION_TEXT.get(edge_type, "is related to")
-                    facts.append(f"{src_node.label} {rel_text} {tgt_node.label}")
+                
+                # Skip if nodes are stop words or missing
+                from encoder.tokenizer import STOP_WORDS
+                if not src_node or not tgt_node: continue
+                if src_node.label.lower() in STOP_WORDS or tgt_node.label.lower() in STOP_WORDS:
+                    continue
+
+                # Convert edge type to human-readable verb
+                from core.constants import EDGE_RELATION_TEXT
+                rel_text = EDGE_RELATION_TEXT.get(str(edge_type), "is related to")
+                facts.append(f"{src_node.label} {rel_text} {tgt_node.label}")
                     
         return {
             "mode": "causal",
