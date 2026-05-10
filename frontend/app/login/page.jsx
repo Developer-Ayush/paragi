@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { Shield, Key, User, ArrowRight, Globe, Fingerprint } from "lucide-react";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useTheme } from "@/components/ThemeProvider";
@@ -26,7 +27,7 @@ export default function LoginPage() {
   async function handleNativeAuth(e) {
     e.preventDefault();
     if (!userId.trim() || !password.trim()) {
-      setError("Credentials required.");
+      setError("Identification required.");
       return;
     }
     
@@ -51,74 +52,238 @@ export default function LoginPage() {
     }
   }
 
+  async function handleGoogleSuccess(credentialResponse) {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await googleLogin(credentialResponse.credential);
+      setAuthSession({
+        token: data.token,
+        userId: data.user_id,
+        tier: data.tier,
+      });
+      router.replace("/chat");
+    } catch (err) {
+      setError(err.message || "Identity verification failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <GoogleOAuthProvider clientId={clientId}>
-      <main className="page center" style={{flexDirection:'column', gap:'40px'}}>
+      <main className="page center" style={{
+        position: 'relative',
+        overflow: 'hidden',
+        background: theme === 'dark' ? '#050505' : '#faf9f7',
+        perspective: '1000px'
+      }}>
+        {/* Background Decorative Elements */}
+        <div style={{
+          position: 'absolute',
+          top: '-10%',
+          left: '-10%',
+          width: '40%',
+          height: '40%',
+          background: 'radial-gradient(circle, var(--accent-soft) 0%, transparent 70%)',
+          filter: 'blur(80px)',
+          opacity: 0.4,
+          zIndex: 0
+        }} />
+        <div style={{
+          position: 'absolute',
+          bottom: '-10%',
+          right: '-10%',
+          width: '50%',
+          height: '50%',
+          background: 'radial-gradient(circle, var(--secondary) 0%, transparent 70%)',
+          filter: 'blur(100px)',
+          opacity: 0.2,
+          zIndex: 0
+        }} />
+
+        <div style={{ position: "absolute", top: "32px", right: "32px", zIndex: 100 }}>
+          <ThemeToggle theme={theme} setTheme={setTheme} />
+        </div>
+
         <motion.div 
-          initial={{opacity:0, y:-20}} 
-          animate={{opacity:1, y:0}}
-          style={{width:'100%', maxWidth:'420px'}}
+          initial={{ opacity: 0, scale: 0.95, rotateX: 10 }}
+          animate={{ opacity: 1, scale: 1, rotateX: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          style={{ width: '100%', maxWidth: '480px', zIndex: 10, position: 'relative' }}
         >
-          <div style={{display:'flex', justifyContent:'flex-end', marginBottom:'20px'}}>
-             <ThemeToggle theme={theme} setTheme={setTheme} />
-          </div>
+          <div className="card-container" style={{
+            padding: '48px',
+            border: '1px solid var(--border)',
+            background: theme === 'dark' ? 'rgba(20, 20, 20, 0.8)' : 'rgba(255, 255, 255, 0.7)',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 30px 60px rgba(0,0,0,0.12)',
+          }}>
+            <header style={{ textAlign: 'center', marginBottom: '40px' }}>
+              <Logo theme={theme} className="login-logo" style={{ marginBottom: '24px', transform: 'scale(1.1)' }} />
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="mono" 
+                style={{ fontSize: '11px', color: 'var(--accent)', letterSpacing: '0.2em', fontWeight: 'bold' }}
+              >
+                SECURE COGNITIVE ACCESS
+              </motion.div>
+            </header>
 
-          <div className="card-container" style={{padding:'40px'}}>
-            <Logo theme={theme} className="login-logo" style={{marginBottom:'32px'}} />
-            
-            <div className="mono" style={{textAlign:'center', fontSize:'11px', color:'var(--muted)', marginBottom:'32px', letterSpacing:'0.1em'}}>
-               COGNITIVE ARCHITECTURE RUNTIME
-            </div>
+            <AnimatePresence mode="wait">
+              {error && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="mono" 
+                  style={{
+                    marginBottom: '24px',
+                    fontSize: '12px',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    background: 'rgba(192, 57, 43, 0.1)',
+                    border: '1px solid var(--accent)',
+                    color: 'var(--accent)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}
+                >
+                  <Shield size={16} /> {error.toUpperCase()}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            {error && <div className="panel-error mono" style={{marginBottom:'20px', fontSize:'12px', padding:'10px', borderRadius:'8px', background:'var(--accent-soft)', border:'1px solid var(--accent-muted)', color:'var(--accent)'}}>{error}</div>}
-
-            <form onSubmit={handleNativeAuth} style={{display:'grid', gap:'20px'}}>
-               <div style={{display:'grid', gap:'8px'}}>
-                  <label className="mono" style={{fontSize:'10px', opacity:0.6}}>TENANT_ID</label>
+            <form onSubmit={handleNativeAuth} style={{ display: 'grid', gap: '24px' }}>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                <label className="mono" style={{ fontSize: '10px', opacity: 0.5, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <User size={12} /> TENANT_IDENTIFIER
+                </label>
+                <div style={{ position: 'relative' }}>
                   <input 
                     type="text" 
                     value={userId}
                     onChange={e => setUserId(e.target.value)}
-                    placeholder="Username"
-                    style={{padding:'12px', borderRadius:'8px', border:'1px solid var(--border)', background:'var(--bg-dark)', color:'var(--text)'}}
+                    placeholder="Enter Username"
+                    style={{
+                      width: '100%',
+                      padding: '14px 16px',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg)',
+                      color: 'var(--text)',
+                      fontSize: '15px',
+                      transition: 'all 0.3s'
+                    }}
                   />
-               </div>
-               <div style={{display:'grid', gap:'8px'}}>
-                  <label className="mono" style={{fontSize:'10px', opacity:0.6}}>ACCESS_KEY</label>
-                  <input 
-                    type="password" 
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="Password"
-                    style={{padding:'12px', borderRadius:'8px', border:'1px solid var(--border)', background:'var(--bg-dark)', color:'var(--text)'}}
-                  />
-               </div>
+                </div>
+              </div>
 
-               <button type="submit" disabled={loading} style={{background:'var(--accent)', color:'#fff', border:'none', padding:'14px', borderRadius:'8px', fontWeight:'bold', cursor:'pointer', marginTop:'10px'}}>
-                  {loading ? "INITIALIZING..." : (mode === 'login' ? "SIGN IN" : "REGISTER")}
-               </button>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                <label className="mono" style={{ fontSize: '10px', opacity: 0.5, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Key size={12} /> CRYPTOGRAPHIC_KEY
+                </label>
+                <input 
+                  type="password" 
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Enter Password"
+                  style={{
+                    width: '100%',
+                    padding: '14px 16px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg)',
+                    color: 'var(--text)',
+                    fontSize: '15px',
+                    transition: 'all 0.3s'
+                  }}
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={loading}
+                style={{
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '16px',
+                  borderRadius: '10px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  marginTop: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '12px',
+                  boxShadow: '0 10px 20px var(--accent-soft)',
+                  transition: 'all 0.3s'
+                }}
+              >
+                {loading ? (
+                  <RefreshCw className="animate-spin" size={20} />
+                ) : (
+                  <>
+                    <span>{mode === 'login' ? "INITIALIZE SESSION" : "REGISTER TENANT"}</span>
+                    <ArrowRight size={18} />
+                  </>
+                )}
+              </button>
             </form>
 
-            <div style={{display:'flex', justifyContent:'center', gap:'16px', marginTop:'24px', fontSize:'13px'}}>
-               <span style={{color:'var(--muted)'}}>{mode === 'login' ? "New to Paragi?" : "Already a tenant?"}</span>
-               <button onClick={() => setMode(mode === 'login' ? 'register' : 'login')} style={{background:'none', border:'none', color:'var(--accent)', cursor:'pointer', fontWeight:'bold'}}>
-                  {mode === 'login' ? "Register Account" : "Sign In"}
-               </button>
+            <div style={{ textAlign: 'center', marginTop: '24px' }}>
+              <button 
+                onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--muted)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '4px'
+                }}
+              >
+                {mode === 'login' ? "Create a new cognitive identity" : "Sign in with existing credentials"}
+              </button>
             </div>
 
-            <div style={{marginTop:'32px', borderTop:'1px solid var(--border)', paddingTop:'24px'}}>
+            <div style={{ marginTop: '40px', borderTop: '1px solid var(--border)', paddingTop: '32px' }}>
+               <div className="mono" style={{ fontSize: '10px', opacity: 0.4, textAlign: 'center', marginBottom: '20px' }}>
+                  FEDERATED IDENTITY GATEWAY
+               </div>
                <GoogleLogin
-                  onSuccess={res => console.log(res)}
-                  onError={() => setError("Google auth failed")}
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError("Federated link failed.")}
+                  useOneTap
                   theme={theme === "dark" ? "filled_black" : "outline"}
-                  shape="pill"
+                  shape="rectangular"
                   width="100%"
                />
             </div>
           </div>
           
-          <div className="mono" style={{textAlign:'center', marginTop:'24px', fontSize:'10px', opacity:0.4}}>
-             ENDPOINT: {apiBase}
+          <div className="mono" style={{ 
+            textAlign: 'center', 
+            marginTop: '32px', 
+            fontSize: '10px', 
+            opacity: 0.3,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
+             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <Globe size={10} /> 
+                <span>RUNTIME_ENDPOINT: {apiBase}</span>
+             </div>
+             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <Fingerprint size={10} />
+                <span>BUILD_VER: 2.4.0-PARAGI</span>
+             </div>
           </div>
         </motion.div>
       </main>

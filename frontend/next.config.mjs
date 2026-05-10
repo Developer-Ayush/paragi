@@ -8,7 +8,7 @@ const nextConfig = {
         headers: [
           {
             key: "Cross-Origin-Opener-Policy",
-            value: "same-origin-allow-popups",
+            value: "same-origin-allow-popups", // Required for Google One Tap / OAuth
           },
         ],
       },

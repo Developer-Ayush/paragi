@@ -22,6 +22,14 @@
   --radius: 12px;
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
 body.dark {
   --bg: #0d0d0d;
   --bg-dark: #1a1a1a;
