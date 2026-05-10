@@ -3,7 +3,7 @@ reasoning/causal_reasoner.py — Causal inference engine.
 """
 from __future__ import annotations
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from core.semantic_ir import SemanticIR
 from core.enums import EdgeType
 from graph.graph import CognitiveGraph
@@ -60,23 +60,17 @@ class CausalReasoner:
                 rel_text = EDGE_RELATION_TEXT.get(str(edge_type), "is related to")
                 facts.append(f"{src_node.label} {rel_text} {tgt_node.label}")
                     
-        return {
-            "mode": "causal",
-            "facts": list(set(facts)), # Deduplicate
-            "chains": facts, # Keep for backward compat
-            "activated_concepts": active_labels
-        }
-            
-        # Filter activated nodes to only those that exist
+        # 4. Map activated nodes to human-readable labels
         active_labels = []
         for nid in activated_nodes:
             node = self.graph.get_node(nid)
             if node:
                 active_labels.append(node.label)
-                
+
         return {
             "mode": "causal",
-            "chains": results,
+            "facts": list(set(facts)), # Deduplicate
+            "chains": facts, # Keep for backward compat
             "activated_concepts": active_labels
         }
 
