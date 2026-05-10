@@ -1,40 +1,52 @@
-<svg width="100%" viewBox="0 0 680 290" role="img" xmlns="http://www.w3.org/2000/svg">
-<title style="fill:rgb(0, 0, 0);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto">Paragi — graph intelligence</title>
-<desc style="fill:rgb(0, 0, 0);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto">Paragi logo: a graph mark with a central hub node in deep red connected by weighted edges to six outer nodes in dark navy, beside the serif wordmark PARAGI and tagline graph intelligence.</desc>
+<svg
+  width="260"
+  height="260"
+  viewBox="20 35 240 240"
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-label="Paragi logo"
+>
+  <!-- Secondary edges -->
+  <g stroke="#A07850" fill="none" stroke-linecap="round">
+    <line x1="140" y1="62"  x2="220" y2="100" stroke-width=".9" opacity=".58"/>
+    <line x1="220" y1="100" x2="235" y2="192" stroke-width="1" opacity=".58"/>
+    <line x1="58"  y1="234" x2="45"  y2="145" stroke-width=".8" opacity=".52"/>
+    <line x1="45"  y1="145" x2="140" y2="62"  stroke-width=".85" opacity=".52"/>
+    <line x1="165" y1="252" x2="58"  y2="234" stroke-width=".7" opacity=".48"/>
+    <line x1="235" y1="192" x2="165" y2="252" stroke-width=".75" opacity=".48"/>
+  </g>
 
+  <!-- Primary edges -->
+  <g stroke="#C05530" fill="none" stroke-linecap="round">
+    <line x1="138" y1="150" x2="140" y2="62"  stroke-width="2.5" opacity=".86"/>
+    <line x1="138" y1="150" x2="220" y2="100" stroke-width="2.2" opacity=".86"/>
+    <line x1="138" y1="150" x2="235" y2="192" stroke-width="2" opacity=".86"/>
+    <line x1="138" y1="150" x2="165" y2="252" stroke-width="1.8" opacity=".86"/>
+    <line x1="138" y1="150" x2="58"  y2="234" stroke-width="1.6" opacity=".86"/>
+    <line x1="138" y1="150" x2="45"  y2="145" stroke-width="2.3" opacity=".86"/>
+  </g>
 
-<!-- secondary edges -->
-<line x1="140" y1="62" x2="220" y2="100" stroke-width=".9" stroke-opacity=".58" style="fill:rgb(0, 0, 0);stroke:rgb(160, 120, 80);color:rgb(255, 255, 255);stroke-width:0.9px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<line x1="220" y1="100" x2="235" y2="192" stroke-width="1.0" stroke-opacity=".58" style="fill:rgb(0, 0, 0);stroke:rgb(160, 120, 80);color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<line x1="58" y1="234" x2="45" y2="145" stroke-width=".8" stroke-opacity=".52" style="fill:rgb(0, 0, 0);stroke:rgb(160, 120, 80);color:rgb(255, 255, 255);stroke-width:0.8px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<line x1="45" y1="145" x2="140" y2="62" stroke-width=".85" stroke-opacity=".52" style="fill:rgb(0, 0, 0);stroke:rgb(160, 120, 80);color:rgb(255, 255, 255);stroke-width:0.85px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<line x1="165" y1="252" x2="58" y2="234" stroke-width=".7" stroke-opacity=".48" style="fill:rgb(0, 0, 0);stroke:rgb(160, 120, 80);color:rgb(255, 255, 255);stroke-width:0.7px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<line x1="235" y1="192" x2="165" y2="252" stroke-width=".75" stroke-opacity=".48" style="fill:rgb(0, 0, 0);stroke:rgb(160, 120, 80);color:rgb(255, 255, 255);stroke-width:0.75px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+  <!-- Outer nodes -->
+  <g fill="#C0CFD8">
+    <circle cx="140" cy="62"  r="9"/>
+    <circle cx="220" cy="100" r="8"/>
+    <circle cx="235" cy="192" r="10"/>
+    <circle cx="165" cy="252" r="8"/>
+    <circle cx="58"  cy="234" r="7"/>
+    <circle cx="45"  cy="145" r="9"/>
+  </g>
 
-<!-- primary edges hub to outer -->
-<line x1="138" y1="150" x2="140" y2="62" stroke-width="2.5" stroke-opacity=".86" style="fill:rgb(0, 0, 0);stroke:rgb(192, 85, 48);color:rgb(255, 255, 255);stroke-width:2.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<line x1="138" y1="150" x2="220" y2="100" stroke-width="2.2" stroke-opacity=".86" style="fill:rgb(0, 0, 0);stroke:rgb(192, 85, 48);color:rgb(255, 255, 255);stroke-width:2.2px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<line x1="138" y1="150" x2="235" y2="192" stroke-width="2.0" stroke-opacity=".86" style="fill:rgb(0, 0, 0);stroke:rgb(192, 85, 48);color:rgb(255, 255, 255);stroke-width:2px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<line x1="138" y1="150" x2="165" y2="252" stroke-width="1.8" stroke-opacity=".86" style="fill:rgb(0, 0, 0);stroke:rgb(192, 85, 48);color:rgb(255, 255, 255);stroke-width:1.8px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<line x1="138" y1="150" x2="58" y2="234" stroke-width="1.6" stroke-opacity=".86" style="fill:rgb(0, 0, 0);stroke:rgb(192, 85, 48);color:rgb(255, 255, 255);stroke-width:1.6px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<line x1="138" y1="150" x2="45" y2="145" stroke-width="2.3" stroke-opacity=".86" style="fill:rgb(0, 0, 0);stroke:rgb(192, 85, 48);color:rgb(255, 255, 255);stroke-width:2.3px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
+  <!-- Hub ring -->
+  <circle
+    cx="138"
+    cy="150"
+    r="23"
+    fill="none"
+    stroke="#C05530"
+    stroke-width=".9"
+  />
 
-<!-- outer nodes -->
-<circle cx="140" cy="62" r="9" style="fill:rgb(192, 207, 216);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<circle cx="220" cy="100" r="8" style="fill:rgb(192, 207, 216);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<circle cx="235" cy="192" r="10" style="fill:rgb(192, 207, 216);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<circle cx="165" cy="252" r="8" style="fill:rgb(192, 207, 216);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<circle cx="58" cy="234" r="7" style="fill:rgb(192, 207, 216);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<circle cx="45" cy="145" r="9" style="fill:rgb(192, 207, 216);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-
-<!-- hub ring -->
-<circle cx="138" cy="150" r="23" stroke-width=".9" style="fill:none;stroke:rgb(192, 85, 48);color:rgb(255, 255, 255);stroke-width:0.9px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-
-<!-- center hub -->
-<circle cx="138" cy="150" r="15" style="fill:rgb(192, 85, 48);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-<circle cx="138" cy="150" r="6" fill="rgba(244,239,227,.32)" style="fill:rgba(244, 239, 227, 0.32);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/>
-
-<!-- wordmark -->
-<text x="286" y="162" font-family="Georgia,'Times New Roman',serif" font-size="64" font-weight="700" letter-spacing="9" style="fill:rgb(240, 234, 216);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:Georgia, &quot;Times New Roman&quot;, serif;font-size:64px;font-weight:700;text-anchor:start;dominant-baseline:auto">PARAGI</text>
-<text x="290" y="194" font-family="'Courier New',monospace" font-size="12.5" letter-spacing="6.5" style="fill:rgb(181, 165, 136);stroke:none;color:rgb(255, 255, 255);stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Courier New&quot;, monospace;font-size:12.5px;font-weight:400;text-anchor:start;dominant-baseline:auto">artificial general intelligence</text>
-<line x1="286" y1="210" x2="612" y2="210" stroke-width=".5" style="fill:rgb(0, 0, 0);stroke:rgb(90, 78, 60);color:rgb(255, 255, 255);stroke-width:0.5px;stroke-linecap:butt;stroke-linejoin:miter;opacity:1;font-family:&quot;Anthropic Sans&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, sans-serif;font-size:16px;font-weight:400;text-anchor:start;dominant-baseline:auto"/></svg>
+  <!-- Center hub -->
+  <circle cx="138" cy="150" r="15" fill="#C05530"/>
+  <circle cx="138" cy="150" r="6" fill="rgba(244,239,227,.32)"/>
+</svg>
