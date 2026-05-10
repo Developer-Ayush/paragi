@@ -11,6 +11,8 @@ from graph.expansion_worker import ExpansionWorker
 from graph.persistence.bloom import BloomFilter
 from .user_state import UserStateManager
 from graph.personal_graph import PersonalGraphManager
+from .config import Settings
+from utils.llm_refiner import LLMRefiner
 
 
 class CognitiveKernel:
@@ -26,6 +28,17 @@ class CognitiveKernel:
         self.bloom = BloomFilter()
         self.user_state = UserStateManager()
         self.personal_graphs = PersonalGraphManager()
+        
+        # LLM Interface (for semantic reconstruction)
+        settings = Settings.from_env()
+        self.llm = LLMRefiner(
+            backend=settings.llm_backend,
+            model=settings.llm_model,
+            base_url=settings.llm_base_url,
+            api_key=settings.llm_api_key,
+            temperature=settings.llm_temperature,
+            max_tokens=settings.llm_max_tokens
+        )
         
         # Background Systems
         self.cycle = CognitiveCycle(self)

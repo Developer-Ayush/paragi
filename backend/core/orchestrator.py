@@ -10,6 +10,7 @@ from encoder.semantic_encoder import SemanticEncoder
 from graph.graph_builder import GraphBuilder
 from reasoning.router import ReasoningRouter
 from decoder.response_formatter import ResponseFormatter
+from decoder.language_generator import LanguageGenerator
 
 if TYPE_CHECKING:
     from .kernel import CognitiveKernel
@@ -28,6 +29,7 @@ class CognitiveOrchestrator:
         self.builder = GraphBuilder(self.kernel.graph)
         self.reasoning = ReasoningRouter(self.kernel.graph)
         self.formatter = ResponseFormatter()
+        self.generator = LanguageGenerator(llm_refiner=self.kernel.llm)
 
     def process_query(self, text: str, user_id: str = "guest") -> Dict[str, Any]:
         """
@@ -67,11 +69,12 @@ class CognitiveOrchestrator:
         # Extract primary answer from reasoner result
         chains = reasoning_result.get("chains", [])
         
-        # Handle intents
+        # Determine base answer
         if ir.intent == "greeting":
             answer = "Hello. Paragi Cognitive Runtime is online. How can I assist with your knowledge graph today?"
         elif chains:
-            answer = ". ".join(chains)
+            # Generate actual language from graph chains
+            answer = self.generator.generate(reasoning_result, original_query=text)
         else:
             answer = "I don't have enough information to form a reasoning chain."
             
