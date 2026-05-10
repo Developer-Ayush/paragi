@@ -74,16 +74,17 @@ export default function LoginPage() {
   return (
     <GoogleOAuthProvider clientId={clientId}>
       <main className="page login-page">
-        <div style={{ position: "absolute", top: "20px", right: "20px", zIndex: 100 }}>
+        <div style={{ position: "absolute", top: "24px", right: "24px", zIndex: 100 }}>
           <ThemeToggle theme={theme} setTheme={setTheme} />
         </div>
+        
         <section className="login-card">
-          <div style={{ textAlign: "center", marginBottom: "8px" }}>
+          <header className="login-header">
             <Logo theme={theme} className="login-logo" />
-            <p style={{ fontSize: "0.9rem" }}>Your graph-native cognition engine.</p>
-          </div>
+            <p>Your graph-native cognition engine.</p>
+          </header>
 
-          <div className="mode-switch">
+          <nav className="mode-switch">
             <button 
               type="button" 
               className={mode === "login" ? "active" : ""} 
@@ -98,12 +99,12 @@ export default function LoginPage() {
             >
               Create Account
             </button>
-          </div>
+          </nav>
 
-          {error && <div className="panel-error" style={{ margin: "4px 0" }}>{error}</div>}
+          {error && <div className="panel-error" style={{ marginBottom: "20px" }}>{error}</div>}
 
-          <form onSubmit={handleNativeAuth} style={{ display: "grid", gap: "12px" }}>
-            <div style={{ display: "grid", gap: "4px" }}>
+          <form onSubmit={handleNativeAuth} className="auth-form">
+            <div className="form-group">
               <label htmlFor="userId">Username</label>
               <input 
                 id="userId"
@@ -112,10 +113,11 @@ export default function LoginPage() {
                 value={userId}
                 onChange={e => setUserId(e.target.value)}
                 disabled={loading}
+                autoComplete="username"
               />
             </div>
             
-            <div style={{ display: "grid", gap: "4px" }}>
+            <div className="form-group">
               <label htmlFor="password">Password</label>
               <input 
                 id="password"
@@ -124,33 +126,35 @@ export default function LoginPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 disabled={loading}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
               />
             </div>
 
-            <button type="submit" className="primary" disabled={loading} style={{ marginTop: "8px" }}>
+            <button type="submit" className="primary" disabled={loading}>
               {loading ? "Authenticating..." : (mode === "login" ? "Sign In" : "Register")}
             </button>
           </form>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "12px 0" }}>
-            <hr style={{ flex: 1, borderTop: "1px solid rgba(215, 194, 160, 0.5)" }} />
-            <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>OR</span>
-            <hr style={{ flex: 1, borderTop: "1px solid rgba(215, 194, 160, 0.5)" }} />
+          <div className="divider">
+            <hr />
+            <span>OR</span>
+            <hr />
           </div>
 
-          <div style={{ display: "flex", justifyContent: "center" }}>
+          <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
               onError={() => setError("Google login widget failed to load.")}
               useOneTap
-              theme="outline"
+              theme={theme === "dark" ? "filled_black" : "outline"}
               shape="pill"
+              width="100%"
             />
           </div>
 
-          <small style={{ marginTop: "16px", display: "block", textAlign: "center", color: "#8b765c" }}>
-            API Endpoint: {apiBase}
-          </small>
+          <div className="api-hint">
+            API: {apiBase}
+          </div>
         </section>
       </main>
     </GoogleOAuthProvider>
