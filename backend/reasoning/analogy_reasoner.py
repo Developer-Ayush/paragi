@@ -1,67 +1,66 @@
-"""reasoning/analogy_reasoner.py — Structural analogy reasoning via relational motif matching."""
+"""
+reasoning/analogy_reasoner.py — Analogical reasoning via structural graph mapping.
+"""
 from __future__ import annotations
 
-from typing import List, Dict, Any
-from graph.graph import GraphEngine, AnalogyCandidate
+import hashlib
+from typing import Dict, Any, List, Set, Optional
 from core.semantic_ir import SemanticIR
-from graph.analogy.structure import get_structural_motif, compare_motifs
-from .engine import ReasoningResult
+from graph.graph import CognitiveGraph
 
 
-def analogy_reason(graph: GraphEngine, ir: SemanticIR, concept: str) -> ReasoningResult:
+class AnalogyReasoner:
     """
-    Finds structural analogies for a concept.
-    Uses relational motif matching to find nodes with similar 'roles' in the graph.
+    Reasoning by finding isomorphic or structurally similar subgraphs.
     """
-    node = graph.get_node_by_label(concept)
-    if node is None:
-        return ReasoningResult(answer="", confidence=0.0, mode="analogy", used_fallback=True)
 
-    # 1. Get structural motif of source
-    source_motif = get_structural_motif(graph, concept)
-    
-    # 2. Find candidates (initial filtering by neighbors, then motif comparison)
-    # Using the legacy matcher for initial candidates
-    initial_candidates = graph.find_analogy_candidates(concept, limit=20, min_shared_neighbors=1)
-    
-    scored_candidates: List[Dict[str, Any]] = []
-    for cand in initial_candidates:
-        target_motif = get_structural_motif(graph, cand.candidate_label)
-        motif_similarity = compare_motifs(source_motif, target_motif)
+    def __init__(self, graph: CognitiveGraph) -> None:
+        self.graph = graph
+
+    def reason(self, ir: SemanticIR) -> Dict[str, Any]:
+        # 1. Identify source domain
+        source = ir.entities[0] if ir.entities else None
+        if not source:
+            return {"error": "No analogy source identified"}
+            
+        source_id = self._get_node_id(source)
+        if not source_id:
+            return {"error": f"Concept '{source}' not found in memory"}
+            
+        # 2. Extract source structure (neighborhood)
+        source_neighbors = self.graph.get_outgoing_edges(source_id)
+        source_pattern = {(e.edge_type, e.target) for e in source_neighbors}
         
-        # Combined score: 60% Motif, 40% Jaccard
-        final_score = (motif_similarity * 0.6) + (cand.jaccard * 0.4)
+        # 3. Find structural candidates
+        candidates = []
+        for nid, node in self.graph._nodes.items():
+            if nid == source_id: continue
+            
+            # Simple structural similarity: shared edge types and topology
+            candidate_neighbors = self.graph.get_outgoing_edges(nid)
+            candidate_pattern = {(e.edge_type, e.target) for e in candidate_neighbors}
+            
+            # Intersection of edge types
+            source_types = {p[0] for p in source_pattern}
+            candidate_types = {p[0] for p in candidate_pattern}
+            shared_types = source_types & candidate_types
+            
+            if shared_types:
+                score = len(shared_types) / len(source_types) if source_types else 0
+                if score > 0.5:
+                    candidates.append({
+                        "concept": node.label,
+                        "score": score,
+                        "shared_logic": list(shared_types)
+                    })
+                    
+        candidates.sort(key=lambda x: x["score"], reverse=True)
         
-        scored_candidates.append({
-            "label": cand.candidate_label,
-            "motif_sim": motif_similarity,
-            "jaccard": cand.jaccard,
-            "score": final_score,
-            "shared": cand.shared_neighbors
-        })
+        return {
+            "mode": "analogy",
+            "source": source,
+            "candidates": candidates[:5]
+        }
 
-    scored_candidates.sort(key=lambda x: -x["score"])
-    
-    if not scored_candidates or scored_candidates[0]["score"] < 0.2:
-        return ReasoningResult(
-            answer=f"No strong structural analogies found for '{concept}'.",
-            confidence=0.0,
-            mode="analogy"
-        )
-
-    # 3. Format top result
-    top = scored_candidates[0]
-    shared_str = ", ".join(top["shared"][:3])
-    answer = (
-        f"'{concept}' is structurally analogous to '{top['label']}'. "
-        f"They share a {top['motif_sim']:.1%} similarity in relational patterns "
-        f"and common associations like: {shared_str}."
-    )
-    
-    return ReasoningResult(
-        answer=answer,
-        confidence=top["score"],
-        node_path=[concept, top["label"]],
-        mode="analogy",
-        extra={"analogies": [c["label"] for c in scored_candidates[:3]]}
-    )
+    def _get_node_id(self, label: str) -> str:
+        return hashlib.sha256(label.lower().strip().encode()).hexdigest()[:16]

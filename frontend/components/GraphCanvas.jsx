@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 
 const WIDTH = 540;
-const HEIGHT = 270;
-const PAD = 22;
+const HEIGHT = 240;
+const PAD = 20;
 
 function shorten(label, size = 16) {
   if (!label) return "";
@@ -20,24 +20,15 @@ function hashText(value) {
   return hash >>> 0;
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
 function buildPositions(nodes, edges) {
   const positions = {};
   const neighborMap = {};
-
-  nodes.forEach((node) => {
-    neighborMap[node.id] = new Set();
+  nodes.forEach(n => neighborMap[n.id] = new Set());
+  edges.forEach(e => {
+    if (!neighborMap[e.source_id] || !neighborMap[e.target_id]) return;
+    neighborMap[e.source_id].add(e.target_id);
+    neighborMap[e.target_id].add(e.source_id);
   });
-
-  edges.forEach((edge) => {
-    if (!neighborMap[edge.source_id] || !neighborMap[edge.target_id]) return;
-    neighborMap[edge.source_id].add(edge.target_id);
-    neighborMap[edge.target_id].add(edge.source_id);
-  });
-
   nodes.forEach((node, index) => {
     const seedX = hashText(`${node.id}:${index}`);
     const seedY = hashText(`${index}:${node.id}`);
@@ -46,142 +37,76 @@ function buildPositions(nodes, edges) {
       y: PAD + (seedY % (HEIGHT - PAD * 2)),
     };
   });
-
-  for (let step = 0; step < 90; step += 1) {
-    nodes.forEach((nodeA, idxA) => {
+  for (let step = 0; step < 80; step++) {
+    nodes.forEach((nodeA) => {
       const a = positions[nodeA.id];
-      if (!a) return;
-
-      let fx = 0;
-      let fy = 0;
-
-      nodes.forEach((nodeB, idxB) => {
-        if (idxA === idxB) return;
+      let fx = 0, fy = 0;
+      nodes.forEach((nodeB) => {
+        if (nodeA.id === nodeB.id) return;
         const b = positions[nodeB.id];
-        if (!b) return;
-        const dx = a.x - b.x;
-        const dy = a.y - b.y;
-        const dist = Math.hypot(dx, dy) || 0.001;
-        if (dist < 30) {
-          const repel = (30 - dist) * 0.08;
-          fx += (dx / dist) * repel;
-          fy += (dy / dist) * repel;
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const dist = Math.hypot(dx, dy) || 0.1;
+        if (dist < 35) {
+          fx += (dx / dist) * (35 - dist) * 0.1;
+          fy += (dy / dist) * (35 - dist) * 0.1;
         }
       });
-
-      const neighbors = neighborMap[nodeA.id] || new Set();
-      neighbors.forEach((neighborId) => {
-        const b = positions[neighborId];
-        if (!b) return;
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const dist = Math.hypot(dx, dy) || 0.001;
-        const desired = 76;
-        const pull = (dist - desired) * 0.0048;
-        fx += (dx / dist) * pull;
-        fy += (dy / dist) * pull;
+      (neighborMap[nodeA.id] || []).forEach(nid => {
+        const b = positions[nid];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy) || 0.1;
+        const pull = (dist - 70) * 0.005;
+        fx += (dx / dist) * pull; fy += (dy / dist) * pull;
       });
-
-      a.x = clamp(a.x + fx, PAD, WIDTH - PAD);
-      a.y = clamp(a.y + fy, PAD, HEIGHT - PAD);
+      a.x = Math.max(PAD, Math.min(WIDTH - PAD, a.x + fx));
+      a.y = Math.max(PAD, Math.min(HEIGHT - PAD, a.y + fy));
     });
   }
-
   return positions;
 }
 
-export default function GraphCanvas({ title, summary, nodeLimit = 26, edgeLimit = 60, showLabels = "hover" }) {
-  const [hoveredNode, setHoveredNode] = useState(null);
-  const [hoveredEdge, setHoveredEdge] = useState(null);
+export default function GraphCanvas({ title, summary, nodeLimit = 20 }) {
+  const [hovered, setHovered] = useState(null);
 
   const { nodes, edges, positions } = useMemo(() => {
-    const selectedNodes = (summary?.nodes || []).slice(0, Math.max(8, nodeLimit));
-    const nodeSet = new Set(selectedNodes.map((node) => node.id));
-    const selectedEdges = (summary?.edges || []).filter(
-      (edge) => nodeSet.has(edge.source_id) && nodeSet.has(edge.target_id),
-    ).slice(0, Math.max(12, edgeLimit));
-
-    const pos = buildPositions(selectedNodes, selectedEdges);
-    return { nodes: selectedNodes, edges: selectedEdges, positions: pos };
-  }, [summary, nodeLimit, edgeLimit]);
-
-  const hoverText = hoveredNode?.description || hoveredEdge?.description || "Hover a node or edge for full details.";
+    const selectedNodes = (summary?.nodes || []).slice(0, nodeLimit);
+    const nodeSet = new Set(selectedNodes.map(n => n.id));
+    const selectedEdges = (summary?.edges || []).filter(e => nodeSet.has(e.source_id) && nodeSet.has(e.target_id));
+    return { nodes: selectedNodes, edges: selectedEdges, positions: buildPositions(selectedNodes, selectedEdges) };
+  }, [summary, nodeLimit]);
 
   return (
-    <section className="graph-card">
-      <header className="graph-card-head">
-        <strong>{title}</strong>
-        <span>
-          {(summary?.stats?.total_nodes || 0)} nodes · {(summary?.stats?.total_edges || 0)} edges
-        </span>
-      </header>
-
-      <svg className="graph-svg" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={`${title} graph`}>
-        <rect x="0" y="0" width={WIDTH} height={HEIGHT} fill="transparent" rx="14" />
-
-        {edges.map((edge) => {
-          const from = positions[edge.source_id];
-          const to = positions[edge.target_id];
+    <div className="card-container" style={{background:'var(--bg-dark)', border:'1px solid var(--border)', borderRadius:'12px', overflow:'hidden'}}>
+      <div className="mono" style={{padding:'10px 14px', fontSize:'10px', background:'var(--secondary)', color:'#fff', display:'flex', justifyContent:'space-between'}}>
+         <span>{title.toUpperCase()}</span>
+         <span>{nodes.length} N</span>
+      </div>
+      
+      <svg width="100%" height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
+        {edges.map(e => {
+          const from = positions[e.source_id], to = positions[e.target_id];
           if (!from || !to) return null;
-          const isActive = hoveredEdge?.id === edge.id;
-          return (
-            <line
-              key={edge.id}
-              x1={from.x}
-              y1={from.y}
-              x2={to.x}
-              y2={to.y}
-              stroke={isActive ? "var(--accent)" : "var(--graph-line)"}
-              strokeOpacity={isActive ? 1.0 : 0.75}
-              strokeWidth={Math.max(1.2, edge.strength * 4.2)}
-              onMouseEnter={() => {
-                setHoveredEdge(edge);
-                setHoveredNode(null);
-              }}
-              onMouseLeave={() => setHoveredEdge(null)}
-            />
-          );
+          return <line key={e.id} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="var(--border)" strokeWidth={Math.max(1, e.strength * 3)} opacity={0.4} />;
         })}
-
-        {nodes.map((node) => {
-          const p = positions[node.id];
-          if (!p) return null;
-          const active = hoveredNode?.id === node.id;
-          const renderLabel = showLabels === "always" || active;
+        {nodes.map(n => {
+          const p = positions[n.id];
+          const active = hovered?.id === n.id;
           return (
-            <g
-              key={node.id}
-              onMouseEnter={() => {
-                setHoveredNode(node);
-                setHoveredEdge(null);
-              }}
-              onMouseLeave={() => setHoveredNode(null)}
-            >
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r={active ? 6.8 : 5.2}
-                fill={active ? "var(--accent)" : "var(--graph-node)"}
-              />
-              {renderLabel && (
-                <text
-                  x={p.x + 7}
-                  y={p.y - 8}
-                  className="graph-label"
-                >
-                  {shorten(node.label, 14)}
+            <g key={n.id} onMouseEnter={() => setHovered(n)} onMouseLeave={() => setHovered(null)}>
+              <circle cx={p.x} cy={p.y} r={active ? 6 : 4} fill={active ? 'var(--accent)' : 'var(--secondary)'} style={{transition:'all 0.2s'}} />
+              {active && (
+                <text x={p.x + 8} y={p.y + 4} className="mono" style={{fontSize:'10px', fill:'var(--text)', fontWeight:'bold'}}>
+                  {n.label.toUpperCase()}
                 </text>
               )}
             </g>
           );
         })}
-
-        {nodes.length === 0 && (
-          <text x="16" y="28" className="graph-empty">No nodes yet.</text>
-        )}
       </svg>
-
-      <p className="graph-hover-text">{hoverText}</p>
-    </section>
+      
+      <div className="mono" style={{padding:'8px 12px', fontSize:'9px', background:'rgba(0,0,0,0.05)', minHeight:'32px', color:'var(--muted)'}}>
+        {hovered ? `NODE: ${hovered.label} | ACCESS: ${hovered.access_count}` : 'HOVER NODE TO INSPECT'}
+      </div>
+    </div>
   );
 }

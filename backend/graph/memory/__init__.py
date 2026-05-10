@@ -1,5 +1,10 @@
 """graph/memory/__init__.py"""
-from .working import WorkingMemory, WorkingMemoryEntry
-from .episodic import EpisodicMemory, EpisodicEntry
-from .decay import DecayWorker
-__all__ = ["WorkingMemory", "WorkingMemoryEntry", "EpisodicMemory", "EpisodicEntry", "DecayWorker"]
+from .working import WorkingMemory
+from .semantic import SemanticMemory
+from .reinforcement import reinforce_path
+
+__all__ = [
+    "WorkingMemory",
+    "SemanticMemory",
+    "reinforce_path"
+]

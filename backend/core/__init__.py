@@ -15,7 +15,7 @@ from .exceptions import (
     DecoderError, CognitionError, StorageError, ConfigError,
 )
 from .logger import get_logger
-from .semantic_ir import Relation, SemanticIR, TemporalData
+from .semantic_ir import IRRelation, SemanticIR, IRNode, IREdge
 from .types import (
     NodeID, EdgeID, Vector, SemanticVector,
     NodeRecord, EdgeRecord,
@@ -39,7 +39,7 @@ __all__ = [
     # Logger
     "get_logger",
     # SemanticIR
-    "Relation", "SemanticIR", "TemporalData",
+    "IRRelation", "SemanticIR", "IRNode", "IREdge",
     # Types
     "NodeID", "EdgeID", "Vector", "SemanticVector",
     "NodeRecord", "EdgeRecord",

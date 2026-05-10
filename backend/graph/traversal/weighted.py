@@ -1,14 +1,42 @@
-"""graph/traversal/weighted.py — Strength-weighted path scoring."""
+"""
+graph/traversal/weighted.py — Weighted traversal based on synaptic strength.
+"""
 from __future__ import annotations
-from typing import List
-from graph.graph import GraphEngine, PathMatch
 
-def best_weighted_path(graph: GraphEngine, source: str, target: str, **kwargs) -> PathMatch | None:
-    """Return the single highest-strength path between source and target."""
-    paths = graph.find_paths(source, target, **kwargs)
-    return paths[0] if paths else None
+import heapq
+from typing import List, Set, Dict, Optional
+from ..graph import CognitiveGraph
 
-def top_weighted_paths(graph: GraphEngine, source: str, target: str, *, n: int = 5, **kwargs) -> List[PathMatch]:
-    """Return top-n paths sorted by mean_strength."""
-    paths = graph.find_paths(source, target, **kwargs)
-    return sorted(paths, key=lambda p: -p.mean_strength)[:n]
+
+def weighted_traversal(
+    graph: CognitiveGraph,
+    start_node_id: str,
+    max_nodes: int = 10,
+    min_weight: float = 0.05
+) -> List[str]:
+    """
+    Traverses the graph prioritizing edges with higher weights.
+    Similar to Dijkstra but for exploration rather than pathfinding.
+    """
+    # Priority queue: (-weight, node_id) -> max heap
+    pq = [(-1.0, start_node_id)]
+    visited: Set[str] = set()
+    result: List[str] = []
+
+    while pq and len(result) < max_nodes:
+        neg_weight, node_id = heapq.heappop(pq)
+        weight = -neg_weight
+        
+        if node_id in visited:
+            continue
+            
+        visited.add(node_id)
+        result.append(node_id)
+        
+        for edge in graph.get_outgoing_edges(node_id):
+            if edge.target not in visited and edge.weight >= min_weight:
+                # Cumulative weight or just local? Exploring usually uses cumulative
+                # but for simplicity we'll use local weight * incoming weight
+                heapq.heappush(pq, (-(weight * edge.weight), edge.target))
+
+    return result

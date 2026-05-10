@@ -1,65 +1,39 @@
-"""decoder/language_generator.py — Language generation at the decoder boundary.
-
-Ports LLMRefiner.format_response() into the new decoder architecture.
-LLM is only called here — the decoder boundary.
+"""
+decoder/language_generator.py — Fluency layer and text generation.
 """
 from __future__ import annotations
-from typing import Any, List, Optional
-from .own_decoder import OwnDecoder
-from .semantic_reconstruction import reconstruct_from_path
+
+from typing import Dict, Any, List
+from utils.llm_refiner import LLMRefiner
+from .explanation_builder import ExplanationBuilder
 
 
 class LanguageGenerator:
     """
-    Decoder boundary: converts graph reasoning result → human language.
-
-    When LLM is available: calls format_response.
-    When LLM is disabled: delegates to OwnDecoder templates.
+    Translates the meaning representation into fluent natural language.
     """
 
-    def __init__(self, *, llm_refiner: Any = None, own_decoder: Optional[OwnDecoder] = None) -> None:
-        self._llm = llm_refiner
-        self._own = own_decoder or OwnDecoder()
+    def __init__(self, llm_refiner: Optional[LLMRefiner] = None) -> None:
+        self.refiner = llm_refiner
+        self.explanation_builder = ExplanationBuilder()
 
-    def generate(
-        self,
-        *,
-        question: str,
-        graph_answer: str,
-        node_path: List[str],
-        edge_types: List[str] = [],
-        confidence: float,
-        intent_kind: str = "unknown",
-    ) -> str:
-        """Generate a human-readable answer."""
-
-        # If answer is empty, no LLM call needed
-
-        # Use LLM at decoder boundary if available
-        if self._llm is not None:
-            try:
-                result = self._llm.format_response(
-                    question=question,
-                    graph_answer=graph_answer,
-                    node_path=node_path,
-                    confidence=confidence,
-                    intent_kind=intent_kind,
-                )
-                if result.used and result.answer:
-                    return result.answer
-            except Exception:
-                pass
-
-        # Fallback: OwnDecoder template
-        if intent_kind == "personal_query":
-            attr = question.lower().replace("what is my", "").replace("?", "").strip()
-            return f"Your {attr} is {graph_answer}."
-
-        if graph_answer:
-            return self._own.decode(graph_answer, confidence, node_path)
-
-        if node_path and edge_types:
-            reconstructed = reconstruct_from_path(node_path, edge_types)
-            return self._own.decode(reconstructed, confidence, node_path)
-
-        return "I'm not sure how to answer that. You can try asking relation questions (e.g., 'does X cause Y?') or concept questions (e.g., 'what is X?')."
+    def generate(self, meaning: Dict[str, Any], original_query: str = "") -> str:
+        """
+        Produces the final natural language response.
+        """
+        # 1. Build base narrative from graph structure
+        base_narrative = self.explanation_builder.build_narrative(meaning)
+        
+        # 2. Refine with LLM for fluency (if available)
+        if self.refiner:
+            # We adapt meaning to RefineResult format
+            refine_res = self.refiner.format_response(
+                question=original_query,
+                graph_answer=base_narrative,
+                node_path=meaning.get("chains", []),
+                confidence=0.8, # Default for reasoning results
+                intent_kind=meaning.get("mode", "general")
+            )
+            return refine_res.answer
+            
+        return base_narrative

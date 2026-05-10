@@ -102,3 +102,7 @@ export function llmStatus() {
 export function queryHistoryEvolution(recordId) {
   return request(`/query/history/${encodeURIComponent(recordId)}/evolution`);
 }
+
+export function userProfile(userId) {
+  return request(`/users/${encodeURIComponent(userId)}`);
+}

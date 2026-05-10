@@ -1,22 +1,22 @@
-from typing import Any, Dict
-from reasoning.engine import ReasoningResult
+"""
+decoder/response_formatter.py — Final output formatting and streaming.
+"""
+from __future__ import annotations
+
+from typing import Dict, Any
+
 
 class ResponseFormatter:
     """
-    Formats ReasoningResult and SemanticIR into final user-facing responses.
+    Handles final markdown polish and metadata wrapping.
     """
-    def format(self, result: ReasoningResult, ir: Any) -> Dict[str, Any]:
-        return {
-            "answer": result.answer,
-            "confidence": round(result.confidence, 4),
-            "mode": result.mode,
-            "node_path": result.node_path,
-            "metadata": {
-                "intent": ir.intent,
-                "domain": result.domain,
-                "scope": result.scope
-            }
-        }
 
-def format_response(result: ReasoningResult, ir: Any) -> Dict[str, Any]:
-    return ResponseFormatter().format(result, ir)
+    def format(self, text: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Wraps the raw text in a standardized response object.
+        """
+        return {
+            "answer": text,
+            "metadata": metadata,
+            "status": "success"
+        }

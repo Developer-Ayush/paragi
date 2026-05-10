@@ -23,6 +23,9 @@ class EdgeType(str, Enum):
     GOAL = "GOAL"                # intentional goal structure
     SEQUENCE = "SEQUENCE"        # ordered sequence membership
     SIMILARITY = "SIMILARITY"    # semantic similarity (weaker than ANALOGY)
+    ASSOCIATED_WITH = "ASSOCIATED_WITH"
+    PRECONDITION = "PRECONDITION"
+    RESULT_OF = "RESULT_OF"
 
 
 # ── Query Types ────────────────────────────────────────────────────────────────

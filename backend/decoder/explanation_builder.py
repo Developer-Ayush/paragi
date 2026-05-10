@@ -1,16 +1,36 @@
-"""decoder/explanation_builder.py — Build human-readable reasoning path explanations."""
+"""
+decoder/explanation_builder.py — Path-to-narrative conversion.
+"""
 from __future__ import annotations
-from typing import List
-from core.constants import EDGE_RELATION_TEXT
+
+from typing import List, Dict, Any
 
 
-def build_explanation(node_path: List[str], edge_types: List[str], *, max_steps: int = 5) -> str:
-    """Build a step-by-step explanation of the reasoning path."""
-    if not node_path or len(node_path) < 2:
-        return ""
-    lines = ["Reasoning path:"]
-    for i in range(min(len(node_path) - 1, len(edge_types), max_steps)):
-        src, tgt = node_path[i], node_path[i + 1]
-        rel = EDGE_RELATION_TEXT.get(edge_types[i], "→")
-        lines.append(f"  {i+1}. {src} {rel} {tgt}")
-    return "\n".join(lines)
+class ExplanationBuilder:
+    """
+    Builds narrative explanations from reasoning paths.
+    """
+
+    def build_narrative(self, meaning: Dict[str, Any]) -> str:
+        """
+        Converts meaning representation into a draft narrative.
+        """
+        chains = meaning.get("chains", [])
+        if not chains:
+            # Fallback to facts
+            facts = meaning.get("facts", [])
+            if not facts:
+                return "I couldn't find a clear explanation."
+            return ". ".join(facts) + "."
+
+        # Convert chains to steps
+        narratives = []
+        for chain in chains:
+            steps = chain.split(" -> ")
+            if len(steps) > 1:
+                narrative = f"Starting with {steps[0]}, we see that it leads to {steps[1]}"
+                for i in range(2, len(steps)):
+                    narrative += f", which then results in {steps[i]}"
+                narratives.append(narrative)
+                
+        return ". ".join(narratives) + "."

@@ -1,12 +1,16 @@
 """reasoning/__init__.py"""
-from .router import ReasoningRouter, RoutingDecision, detect_reasoning_mode
-from .engine import ReasoningEngine, ReasoningResult
-from .confidence import compute_path_confidence, consensus_confidence
-from .scorer import score_paths, summarize_paths
+from .router import ReasoningRouter
+from .causal_reasoner import CausalReasoner
+from .analogy_reasoner import AnalogyReasoner
+from .temporal_reasoner import TemporalReasoner
+from .contradiction_reasoner import ContradictionReasoner
+from .abstraction_reasoner import AbstractionReasoner
 
 __all__ = [
-    "ReasoningRouter", "RoutingDecision", "detect_reasoning_mode",
-    "ReasoningEngine", "ReasoningResult",
-    "compute_path_confidence", "consensus_confidence",
-    "score_paths", "summarize_paths",
+    "ReasoningRouter",
+    "CausalReasoner",
+    "AnalogyReasoner",
+    "TemporalReasoner",
+    "ContradictionReasoner",
+    "AbstractionReasoner"
 ]

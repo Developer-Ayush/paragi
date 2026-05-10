@@ -1,43 +1,49 @@
-"""reasoning/contradiction_reasoner.py — Contradiction detection and structural resolution."""
+"""
+reasoning/contradiction_reasoner.py — Logical contradiction detection and resolution.
+"""
 from __future__ import annotations
 
-from typing import List, Optional
-from graph.graph import GraphEngine, ContradictionResult
+import hashlib
+from typing import Dict, Any, List
 from core.semantic_ir import SemanticIR
-from .engine import ReasoningResult
+from core.enums import EdgeType
+from graph.graph import CognitiveGraph
 
 
-def contradiction_reason(graph: GraphEngine, ir: SemanticIR, source: str, positive_target: str, negative_target: Optional[str] = None) -> ReasoningResult:
+class ContradictionReasoner:
     """
-    Analyzes conflicting evidence for a concept.
-    Uses structural 'voting' across the graph to determine which side of a contradiction has more support.
+    Detects and resolves conflicting paths or edges in the graph.
     """
-    if not negative_target:
-        # Try to find a contradictory node in the graph
-        neighbors = graph.get_neighbors(source)
-        contradictors = [graph.get_node_label(e.target) for e in neighbors if e.type == "CONTRADICTS"]
-        negative_target = contradictors[0] if contradictors else f"not {positive_target}"
 
-    # Use the graph's built-in contradiction voting logic
-    vote = graph.contradiction_vote(source, positive_target, negative_target)
-    
-    answer = (
-        f"Contradiction Analysis for '{source}': The verdict is '{vote.verdict}'. "
-        f"Structural support: {vote.positive_paths} positive paths vs {vote.negative_paths} negative paths. "
-        f"Resolution Confidence: {vote.confidence:.2%}"
-    )
-    
-    if vote.minority_edge_weakened:
-        answer += " (Note: Minority evidence has been weakened via Hebbian suppression.)"
+    def __init__(self, graph: CognitiveGraph) -> None:
+        self.graph = graph
 
-    return ReasoningResult(
-        answer=answer,
-        confidence=vote.confidence,
-        node_path=[source, positive_target, negative_target],
-        mode="contradiction",
-        extra={
-            "pos_count": vote.positive_paths,
-            "neg_count": vote.negative_paths,
-            "verdict": vote.verdict
+    def reason(self, ir: SemanticIR) -> Dict[str, Any]:
+        # 1. Identify primary concept
+        subject = ir.entities[0] if ir.entities else None
+        if not subject:
+            return {"error": "No subject for contradiction check"}
+            
+        subject_id = self._get_node_id(subject)
+        
+        # 2. Check for explicit CONTRADICTS edges
+        conflicts = []
+        for edge in self.graph.get_outgoing_edges(subject_id):
+            if edge.edge_type == EdgeType.CONTRADICTS:
+                conflicts.append({
+                    "subject": subject,
+                    "contradicts": self.graph.get_node(edge.target).label,
+                    "confidence": edge.confidence
+                })
+                
+        # 3. Check for implicit contradictions (same path, different target)
+        # (Implementation placeholder for deeper path contradiction logic)
+        
+        return {
+            "mode": "contradiction",
+            "subject": subject,
+            "conflicts": conflicts
         }
-    )
+
+    def _get_node_id(self, label: str) -> str:
+        return hashlib.sha256(label.lower().strip().encode()).hexdigest()[:16]

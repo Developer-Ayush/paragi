@@ -1,7 +1,15 @@
 """graph/__init__.py"""
-from .graph import GraphEngine, PathMatch, ConsensusResult, ContradictionResult, HubNode, AnalogyCandidate
-from .graph_builder import GraphBuilder, insert_ir
+from .graph import CognitiveGraph
+from .graph_builder import GraphBuilder
+from .node import Node
+from .edge import Edge
+from .graph_store import GraphStore, InMemoryGraphStore
+
 __all__ = [
-    "GraphEngine", "PathMatch", "ConsensusResult", "ContradictionResult", "HubNode", "AnalogyCandidate",
-    "GraphBuilder", "insert_ir",
+    "CognitiveGraph",
+    "GraphBuilder",
+    "Node",
+    "Edge",
+    "GraphStore",
+    "InMemoryGraphStore"
 ]

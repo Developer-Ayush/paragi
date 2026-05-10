@@ -1,21 +1,35 @@
-"""graph/traversal/constrained.py — Edge-type-constrained traversal."""
+"""
+graph/traversal/constrained.py — Traversal with semantic constraints.
+"""
 from __future__ import annotations
-from typing import List
+
+from typing import List, Set, Optional, Iterable
 from core.enums import EdgeType
-from graph.graph import GraphEngine, PathMatch
-from .dfs import dfs_paths
+from ..graph import CognitiveGraph
 
-def causal_paths(graph: GraphEngine, source: str, target: str, **kwargs) -> List[PathMatch]:
-    return dfs_paths(graph, source, target, edge_type_filter=["CAUSES", "CORRELATES"], **kwargs)
 
-def temporal_paths(graph: GraphEngine, source: str, target: str, **kwargs) -> List[PathMatch]:
-    return dfs_paths(graph, source, target, edge_type_filter=["TEMPORAL", "SEQUENCE"], **kwargs)
+def constrained_traversal(
+    graph: CognitiveGraph,
+    start_node_id: str,
+    allowed_edge_types: Iterable[EdgeType],
+    max_depth: int = 3
+) -> List[str]:
+    """
+    Traverses the graph only through specific edge types.
+    """
+    allowed_types = set(allowed_edge_types)
+    result: List[str] = []
+    visited: Set[str] = {start_node_id}
+    stack = [(start_node_id, 0)]
 
-def analogy_paths(graph: GraphEngine, source: str, target: str, **kwargs) -> List[PathMatch]:
-    return dfs_paths(graph, source, target, edge_type_filter=["ANALOGY", "SIMILARITY"], **kwargs)
+    while stack:
+        node_id, depth = stack.pop()
+        result.append(node_id)
+        
+        if depth < max_depth:
+            for edge in graph.get_outgoing_edges(node_id):
+                if edge.edge_type in allowed_types and edge.target not in visited:
+                    visited.add(edge.target)
+                    stack.append((edge.target, depth + 1))
 
-def abstraction_paths(graph: GraphEngine, source: str, target: str, **kwargs) -> List[PathMatch]:
-    return dfs_paths(graph, source, target, edge_type_filter=["IS_A", "ABSTRACTS_TO", "PART_OF"], **kwargs)
-
-def goal_paths(graph: GraphEngine, source: str, target: str, **kwargs) -> List[PathMatch]:
-    return dfs_paths(graph, source, target, edge_type_filter=["GOAL", "DEPENDS_ON"], **kwargs)
+    return result

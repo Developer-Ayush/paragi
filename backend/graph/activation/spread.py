@@ -1,47 +1,45 @@
-"""graph/activation/spread.py — Spreading activation from seed nodes."""
+"""
+graph/activation/spread.py — Spreading Activation algorithm.
+"""
 from __future__ import annotations
-from typing import Dict, List
-from graph.graph import GraphEngine
+
+from typing import Dict, List, Set
+from ..graph import CognitiveGraph
 
 
 def spread_activation(
-    graph: GraphEngine,
-    seeds: List[str],
-    *,
-    decay: float = 0.5,
-    max_depth: int = 3,
-    threshold: float = 0.05,
+    graph: CognitiveGraph,
+    source_node_id: str,
+    initial_energy: float = 1.0,
+    decay_factor: float = 0.5,
+    min_energy: float = 0.0001,
+    max_hops: int = 10
 ) -> Dict[str, float]:
     """
-    Spreading activation: starts at seed nodes and propagates activation
-    outward through edges, decayed by edge strength and hop distance.
-
-    Returns {node_label: activation_level}.
+    Propagates activation energy through the graph.
+    Returns a mapping of node IDs to the activation they received in this pass.
     """
-    activation: Dict[str, float] = {}
+    activation_delta: Dict[str, float] = {}
+    
+    def _spread(node_id: str, energy: float, depth: int):
+        if energy < min_energy or depth > max_hops:
+            return
+            
+        # Update delta
+        activation_delta[node_id] = activation_delta.get(node_id, 0.0) + energy
+        
+        # Propagate to neighbors
+        for edge in graph.get_outgoing_edges(node_id):
+            # Energy transfer depends on edge weight and decay
+            transfer = energy * edge.weight * decay_factor
+            _spread(edge.target, transfer, depth + 1)
 
-    # Initialize seeds
-    for seed in seeds:
-        node = graph.get_node_by_label(seed)
+    _spread(source_node_id, initial_energy, 0)
+    
+    # Apply deltas to graph nodes
+    for nid, delta in activation_delta.items():
+        node = graph.get_node(nid)
         if node:
-            activation[node.id] = 1.0
-
-    # Spread layer by layer
-    for depth in range(max_depth):
-        next_activation: Dict[str, float] = dict(activation)
-        for node_id, level in activation.items():
-            if level < threshold:
-                continue
-            for edge in graph.store.list_outgoing(node_id):
-                spread = level * edge.strength * (decay ** (depth + 1))
-                if spread >= threshold:
-                    existing = next_activation.get(edge.target, 0.0)
-                    next_activation[edge.target] = max(existing, spread)
-        activation = next_activation
-
-    # Convert IDs to labels
-    return {
-        graph.get_node_label(nid): level
-        for nid, level in activation.items()
-        if level >= threshold
-    }
+            node.set_activation(node.activation + delta)
+            
+    return activation_delta

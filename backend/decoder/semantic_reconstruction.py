@@ -1,25 +1,47 @@
-"""decoder/semantic_reconstruction.py — Reconstruct semantic content from GraphIR."""
+"""
+decoder/semantic_reconstruction.py — Reconstruct meaning from SemanticIR.
+"""
 from __future__ import annotations
-from typing import List
-from core.constants import EDGE_RELATION_TEXT
-from .graph_to_ir import GraphIR
+
+from typing import List, Dict, Any
+from core.semantic_ir import SemanticIR
 
 
-def reconstruct(gir: GraphIR) -> str:
-    """Convert GraphIR fact triples into a structured natural-language answer."""
-    if not gir.fact_triples:
-        return ""
-    parts = []
-    for src, etype, tgt in gir.fact_triples[:5]:
-        rel_text = EDGE_RELATION_TEXT.get(etype, "is related to")
-        parts.append(f"{src} {rel_text} {tgt}")
-    return ". ".join(parts) + "." if parts else ""
+class SemanticReconstructor:
+    """
+    Converts a populated SemanticIR into a structured "Meaning Representation".
+    """
 
+    def reconstruct(self, ir: SemanticIR) -> Dict[str, Any]:
+        """
+        Builds a structured summary of the information to be communicated.
+        """
+        # 1. Primary subject
+        subject = ir.entities[0] if ir.entities else "The system"
+        
+        # 2. Key facts (relations)
+        facts = []
+        for rel in ir.relations:
+            facts.append(f"{rel.source} {self._get_rel_verb(rel.relation)} {rel.target}")
+            
+        # 3. Chains (from reasoning)
+        chains = ir.metadata.get("chains", [])
+        
+        return {
+            "subject": subject,
+            "facts": facts,
+            "chains": chains,
+            "mode": ir.metadata.get("reasoning_mode", "general")
+        }
 
-def reconstruct_from_path(node_path: List[str], edge_types: List[str]) -> str:
-    """Reconstruct from a traversal path."""
-    parts = []
-    for i in range(min(len(node_path) - 1, len(edge_types))):
-        rel = EDGE_RELATION_TEXT.get(edge_types[i], "relates to")
-        parts.append(f"{node_path[i]} {rel} {node_path[i+1]}")
-    return ". ".join(parts) + "." if parts else ""
+    def _get_rel_verb(self, rel_type: str) -> str:
+        # Simple mapping for internal relations to natural language verbs
+        mapping = {
+            "CAUSES": "causes",
+            "IS_A": "is a",
+            "PART_OF": "is part of",
+            "ASSOCIATED_WITH": "is associated with",
+            "ANALOGY": "is similar to",
+            "TEMPORAL": "is followed by"
+        }
+        return mapping.get(str(rel_type), "relates to")

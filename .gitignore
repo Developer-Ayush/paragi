@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Paragi Data
+backend/data/
+backend/brain/
+backend/test_data/
+*.log
+
+# Node
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.production
+.env.development

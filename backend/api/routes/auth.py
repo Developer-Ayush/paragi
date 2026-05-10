@@ -52,14 +52,20 @@ async def session(token: Optional[str] = None):
 async def logout(req: TokenRequest):
     return {'ok': True}
 
+from api.server import agent
+
 @router.get('/users/{user_id}')
 async def get_user_profile(user_id: str):
+    if not agent or not agent.kernel:
+        return {'error': 'Kernel not initialized'}
+        
+    state = agent.kernel.user_state.get_user_state(user_id)
     return {
         'user_id': user_id,
-        'tier': 'contributor',
-        'credit_balance': 100,
-        'main_nodes_contributed': 5,
-        'personal_nodes_count': 2,
-        'domain_nodes_contributed': {'legal': 5},
-        'domain_credits_earned': {'legal': 50}
+        'tier': state.tier,
+        'credit_balance': state.credits,
+        'main_nodes_contributed': state.main_nodes_contributed,
+        'personal_nodes_count': 0, # To be added if tracked
+        'domain_nodes_contributed': state.domain_nodes_contributed,
+        'domain_credits_earned': state.domain_credits_earned
     }

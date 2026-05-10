@@ -1,90 +1,117 @@
-"""graph/edge.py — The Edge domain object.
-
-Represents a typed semantic relation between two nodes.
-Edges encapsulate reinforcement learning logic (Hebbian updates) and temporal decay.
+"""
+graph/edge.py — The High-Fidelity Edge domain object.
 """
 from __future__ import annotations
 
 import time
-from typing import List
-
+from typing import Any, Dict, Optional, List
 from core.enums import EdgeType
-from .schemas import EdgeSchema
+from core.constants import (
+    VECTOR_SIZE, ETA_DEFAULT, ALPHA_DEFAULT, BETA_DEFAULT, 
+    EDGE_STRENGTH_FLOOR, EDGE_STRENGTH_MAX
+)
 
 
 class Edge:
     """
-    A cognitive edge (relation) within the graph.
+    A high-fidelity cognitive edge.
     
-    Architectural Role:
-    The actual 'intelligence' of the system. Edges represent causal, temporal, 
-    and analogical synapses. They are active entities that strengthen with use 
-    (Hebbian learning) and wither without it (Temporal decay).
+    Implements §5.3 of the Paragi paper:
+    Δstrength = η(S - strength) + αR - βD
     """
 
-    def __init__(self, schema: EdgeSchema) -> None:
-        self._data = schema
+    def __init__(
+        self,
+        source: str,
+        target: str,
+        edge_type: EdgeType,
+        weight: float = 0.1,
+        confidence: float = 1.0,
+        vector: Optional[List[float]] = None,
+        emotional_weight: float = 0.0,
+        stability: float = 1.0,
+        decay_param: float = 1.0,
+        temporal_data: Dict[str, Any] = None,
+        causal_strength: float = 0.0,
+        metadata: Dict[str, Any] = None
+    ) -> None:
+        self.source = source
+        self.target = target
+        self.edge_type = edge_type
+        self.weight = weight # synonymous with 'strength' in the paper
+        self.confidence = confidence
+        
+        # High-Fidelity Fields
+        self.vector = vector or [0.0] * VECTOR_SIZE
+        self.emotional_weight = emotional_weight
+        self.stability = stability
+        self.decay_param = decay_param
+        
+        self.temporal_data = temporal_data or {}
+        self.causal_strength = causal_strength
+        self.metadata = metadata or {}
+        
+        self.created_at = time.time()
+        self.last_activated = self.created_at
+        self.recall_count = 0
+
+    def reinforce(
+        self, 
+        s_score: Optional[float] = None, 
+        eta: float = ETA_DEFAULT, 
+        alpha: float = ALPHA_DEFAULT, 
+        beta: float = BETA_DEFAULT
+    ) -> None:
+        """
+        Advanced Hebbian reinforcement formula:
+        Δstrength = η(S - strength) + αR - βD
+        """
+        self.recall_count += 1
+        self.last_activated = time.time()
+        
+        # S (target strength) defaults to emotional_weight or 1.0
+        S = s_score if s_score is not None else max(self.emotional_weight, 0.8)
+        
+        # Formula implementation
+        delta = eta * (S - self.weight) + (alpha * self.recall_count) - (beta * self.decay_param)
+        
+        self.weight = max(EDGE_STRENGTH_FLOOR, min(EDGE_STRENGTH_MAX, self.weight + delta))
+
+    def decay(self, base_rate: float = 0.01) -> None:
+        """Temporal decay of edge weight and vector."""
+        # Scalar weight decay
+        self.weight = max(EDGE_STRENGTH_FLOOR, self.weight * (1.0 - base_rate))
+        
+        # Vector decay (simplified for now, specific logic in vector_decay.py)
+        for i in range(len(self.vector)):
+            self.vector[i] *= (1.0 - base_rate)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "source": self.source,
+            "target": self.target,
+            "edge_type": self.edge_type,
+            "weight": self.weight,
+            "confidence": self.confidence,
+            "vector": self.vector,
+            "emotional_weight": self.emotional_weight,
+            "stability": self.stability,
+            "decay_param": self.decay_param,
+            "temporal_data": self.temporal_data,
+            "causal_strength": self.causal_strength,
+            "metadata": self.metadata,
+            "created_at": self.created_at,
+            "last_activated": self.last_activated,
+            "recall_count": self.recall_count
+        }
 
     @classmethod
-    def create(
-        cls, edge_id: str, source: str, target: str, edge_type: EdgeType,
-        *, strength: float = 0.1, confidence: float = 0.5, vector: List[float] | None = None
-    ) -> "Edge":
-        ts = time.time()
-        return cls(EdgeSchema(
-            id=edge_id, source=source, target=target, type=edge_type,
-            strength=strength, confidence=confidence, vector=vector or [],
-            stability=1.0, emotional_weight=0.0,
-            recall_count=0, last_activated=ts, created=ts
-        ))
-
-    # ── Properties ──────────────────────────────────────────────────────────
-
-    @property
-    def id(self) -> str: return self._data.id
-
-    @property
-    def source(self) -> str: return self._data.source
-
-    @property
-    def target(self) -> str: return self._data.target
-
-    @property
-    def type(self) -> EdgeType: return self._data.type
-
-    @property
-    def strength(self) -> float: return self._data.strength
-
-    # ── Domain Logic: Hebbian Learning ──────────────────────────────────────
-
-    def reinforce(self, eta: float = 0.05, alpha: float = 0.001) -> None:
-        """
-        Hebbian reinforcement. 
-        Increases synaptic strength when successfully traversed for reasoning.
-        """
-        self._data.recall_count += 1
-        self._data.last_activated = time.time()
-        
-        # Rule: ΔS = η * (Target_S - Current_S) + (α * recall)
-        # Using emotional_weight as a modifier if present, else pushing toward 1.0
-        target_s = max(0.5, self._data.emotional_weight) if self._data.emotional_weight > 0 else 1.0
-        
-        delta = eta * (target_s - self._data.strength) + (alpha * self._data.recall_count)
-        self._data.strength = min(1.0, self._data.strength + delta)
-
-    def weaken(self, penalty: float = 0.1) -> None:
-        """
-        Explicit penalty (e.g., when contradicted by new information).
-        """
-        self._data.strength = max(0.01, self._data.strength - penalty)
-
-    def decay(self, base_rate: float, floor: float = 0.01) -> None:
-        """
-        Temporal decay. Weakens connections that are not used.
-        """
-        # Stability parameter provides resistance to decay
-        actual_rate = base_rate * (1.0 / max(0.1, self._data.stability))
-        self._data.strength = floor + (self._data.strength - floor) * (1.0 - actual_rate)
-
-    def to_schema(self) -> EdgeSchema:
-        return self._data.model_copy()
+    def from_dict(cls, data: Dict[str, Any]) -> Edge:
+        created_at = data.pop("created_at", time.time())
+        last_activated = data.pop("last_activated", created_at)
+        recall_count = data.pop("recall_count", 0)
+        edge = cls(**data)
+        edge.created_at = created_at
+        edge.last_activated = last_activated
+        edge.recall_count = recall_count
+        return edge

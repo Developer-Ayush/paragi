@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useTheme } from "@/components/ThemeProvider";
@@ -13,7 +14,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [mode, setMode] = useState("login"); // 'login' or 'register'
+  const [mode, setMode] = useState("login");
   const { theme, setTheme } = useTheme();
   
   const [userId, setUserId] = useState("");
@@ -25,7 +26,7 @@ export default function LoginPage() {
   async function handleNativeAuth(e) {
     e.preventDefault();
     if (!userId.trim() || !password.trim()) {
-      setError("Username and password are required.");
+      setError("Credentials required.");
       return;
     }
     
@@ -34,7 +35,6 @@ export default function LoginPage() {
     try {
       if (mode === "register") {
         await register({ user_id: userId, password, tier: "free" });
-        // Automatically login after successful registration
       }
       const data = await login({ user_id: userId, password });
       
@@ -42,30 +42,10 @@ export default function LoginPage() {
         token: data.token,
         userId: data.user_id,
         tier: data.tier,
-        sessionExpiresAt: data.session_expires_at,
       });
       router.replace("/chat");
     } catch (err) {
-      setError(err.message || "Authentication failed. Please check your credentials.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleGoogleSuccess(credentialResponse) {
-    setLoading(true);
-    setError("");
-    try {
-      const data = await googleLogin(credentialResponse.credential);
-      setAuthSession({
-        token: data.token,
-        userId: data.user_id,
-        tier: data.tier,
-        sessionExpiresAt: data.session_expires_at,
-      });
-      router.replace("/chat");
-    } catch (err) {
-      setError(err.message || "Google authentication failed");
+      setError(err.message || "Authentication failed.");
     } finally {
       setLoading(false);
     }
@@ -73,89 +53,74 @@ export default function LoginPage() {
 
   return (
     <GoogleOAuthProvider clientId={clientId}>
-      <main className="page login-page">
-        <div style={{ position: "absolute", top: "24px", right: "24px", zIndex: 100 }}>
-          <ThemeToggle theme={theme} setTheme={setTheme} />
-        </div>
-        
-        <section className="login-card">
-          <header className="login-header">
-            <Logo theme={theme} className="login-logo" />
-            <p>Your graph-native cognition engine.</p>
-          </header>
+      <main className="page center" style={{flexDirection:'column', gap:'40px'}}>
+        <motion.div 
+          initial={{opacity:0, y:-20}} 
+          animate={{opacity:1, y:0}}
+          style={{width:'100%', maxWidth:'420px'}}
+        >
+          <div style={{display:'flex', justifyContent:'flex-end', marginBottom:'20px'}}>
+             <ThemeToggle theme={theme} setTheme={setTheme} />
+          </div>
 
-          <nav className="mode-switch">
-            <button 
-              type="button" 
-              className={mode === "login" ? "active" : ""} 
-              onClick={() => { setMode("login"); setError(""); }}
-            >
-              Sign In
-            </button>
-            <button 
-              type="button" 
-              className={mode === "register" ? "active" : ""} 
-              onClick={() => { setMode("register"); setError(""); }}
-            >
-              Create Account
-            </button>
-          </nav>
-
-          {error && <div className="panel-error" style={{ marginBottom: "20px" }}>{error}</div>}
-
-          <form onSubmit={handleNativeAuth} className="auth-form">
-            <div className="form-group">
-              <label htmlFor="userId">Username</label>
-              <input 
-                id="userId"
-                type="text" 
-                placeholder="Enter your username"
-                value={userId}
-                onChange={e => setUserId(e.target.value)}
-                disabled={loading}
-                autoComplete="username"
-              />
-            </div>
+          <div className="card-container" style={{padding:'40px'}}>
+            <Logo theme={theme} className="login-logo" style={{marginBottom:'32px'}} />
             
-            <div className="form-group">
-              <label htmlFor="password">Password</label>
-              <input 
-                id="password"
-                type="password" 
-                placeholder="Enter your password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                disabled={loading}
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-              />
+            <div className="mono" style={{textAlign:'center', fontSize:'11px', color:'var(--muted)', marginBottom:'32px', letterSpacing:'0.1em'}}>
+               COGNITIVE ARCHITECTURE RUNTIME
             </div>
 
-            <button type="submit" className="primary" disabled={loading}>
-              {loading ? "Authenticating..." : (mode === "login" ? "Sign In" : "Register")}
-            </button>
-          </form>
+            {error && <div className="panel-error mono" style={{marginBottom:'20px', fontSize:'12px', padding:'10px', borderRadius:'8px', background:'var(--accent-soft)', border:'1px solid var(--accent-muted)', color:'var(--accent)'}}>{error}</div>}
 
-          <div className="divider">
-            <hr />
-            <span>OR</span>
-            <hr />
-          </div>
+            <form onSubmit={handleNativeAuth} style={{display:'grid', gap:'20px'}}>
+               <div style={{display:'grid', gap:'8px'}}>
+                  <label className="mono" style={{fontSize:'10px', opacity:0.6}}>TENANT_ID</label>
+                  <input 
+                    type="text" 
+                    value={userId}
+                    onChange={e => setUserId(e.target.value)}
+                    placeholder="Username"
+                    style={{padding:'12px', borderRadius:'8px', border:'1px solid var(--border)', background:'var(--bg-dark)', color:'var(--text)'}}
+                  />
+               </div>
+               <div style={{display:'grid', gap:'8px'}}>
+                  <label className="mono" style={{fontSize:'10px', opacity:0.6}}>ACCESS_KEY</label>
+                  <input 
+                    type="password" 
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="Password"
+                    style={{padding:'12px', borderRadius:'8px', border:'1px solid var(--border)', background:'var(--bg-dark)', color:'var(--text)'}}
+                  />
+               </div>
 
-          <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={() => setError("Google login widget failed to load.")}
-              useOneTap
-              theme={theme === "dark" ? "filled_black" : "outline"}
-              shape="pill"
-              width="100%"
-            />
-          </div>
+               <button type="submit" disabled={loading} style={{background:'var(--accent)', color:'#fff', border:'none', padding:'14px', borderRadius:'8px', fontWeight:'bold', cursor:'pointer', marginTop:'10px'}}>
+                  {loading ? "INITIALIZING..." : (mode === 'login' ? "SIGN IN" : "REGISTER")}
+               </button>
+            </form>
 
-          <div className="api-hint">
-            API: {apiBase}
+            <div style={{display:'flex', justifyContent:'center', gap:'16px', marginTop:'24px', fontSize:'13px'}}>
+               <span style={{color:'var(--muted)'}}>{mode === 'login' ? "New to Paragi?" : "Already a tenant?"}</span>
+               <button onClick={() => setMode(mode === 'login' ? 'register' : 'login')} style={{background:'none', border:'none', color:'var(--accent)', cursor:'pointer', fontWeight:'bold'}}>
+                  {mode === 'login' ? "Register Account" : "Sign In"}
+               </button>
+            </div>
+
+            <div style={{marginTop:'32px', borderTop:'1px solid var(--border)', paddingTop:'24px'}}>
+               <GoogleLogin
+                  onSuccess={res => console.log(res)}
+                  onError={() => setError("Google auth failed")}
+                  theme={theme === "dark" ? "filled_black" : "outline"}
+                  shape="pill"
+                  width="100%"
+               />
+            </div>
           </div>
-        </section>
+          
+          <div className="mono" style={{textAlign:'center', marginTop:'24px', fontSize:'10px', opacity:0.4}}>
+             ENDPOINT: {apiBase}
+          </div>
+        </motion.div>
       </main>
     </GoogleOAuthProvider>
   );

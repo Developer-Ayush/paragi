@@ -1,14 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Send, 
+  Cpu, 
+  Network, 
+  History, 
+  LogOut, 
+  Plus, 
+  RefreshCw, 
+  Zap, 
+  ShieldCheck,
+  BrainCircuit,
+  Settings
+} from "lucide-react";
 import GraphPanel from "@/components/GraphPanel";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useTheme } from "@/components/ThemeProvider";
 import { getAuthSession, clearAuthSession } from "@/lib/auth";
 import { createSession, loadSessions, normalizeTitle, saveSessions, upsertSession, deleteSession } from "@/lib/chat-storage";
-import { health, llmStatus, logout, query, session, queryHistoryEvolution, getApiBase } from "@/lib/api";
+import { health, llmStatus, logout, query, session, queryHistoryEvolution, getApiBase, userProfile } from "@/lib/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
 function makeMessage(role, text, meta = null) {
@@ -30,14 +44,15 @@ export default function ChatWorkspace() {
   const searchParams = useSearchParams();
   const urlChatId = searchParams.get("chatId");
   const [auth, setAuth] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [checking, setChecking] = useState(true);
   const { theme, setTheme } = useTheme();
-  const pendingQueryRef = useMemo(() => ({ current: "" }), []);
+  const pendingQueryRef = useRef("");
   const [sessions, setSessions] = useState([]);
   const [activeId, setActiveId] = useState("");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState("System Ready");
   const [meta, setMeta] = useState({ health: "-", llm: "-" });
   const [refreshSignal, setRefreshSignal] = useState(0);
 
@@ -46,444 +61,281 @@ export default function ChatWorkspace() {
     [sessions, activeId],
   );
 
-  const { lastMessage, isConnected } = useWebSocket(auth?.userId, getApiBase());
+  const { lastMessage } = useWebSocket(auth?.userId, getApiBase());
 
-  // Handle cross-session synchronization via WebSocket
   useEffect(() => {
     if (!lastMessage || lastMessage.type !== "chat_update") return;
-
     const { chat_id, data } = lastMessage;
-
-    // If the message is for a different session, update that session in the background
-    // If it's for the current session, append it (unless we are already handling it)
     setSessions(prev => {
       const sessionToUpdate = prev.find(s => s.id === chat_id);
-      if (!sessionToUpdate) {
-        // If session not found locally, we might need to fetch it or just ignore if it's new
-        return prev;
-      }
-
-      // Check if this message (by history_record_id) already exists to avoid duplicates
+      if (!sessionToUpdate) return prev;
       const exists = (sessionToUpdate.messages || []).some(m => m.meta?.history_record_id === data.history_record_id);
       if (exists) return prev;
-
-      // Also check if we are currently "sending" the same query to avoid double-appending our own response
-      const isOurOwnResponse = sending && data.input_text === pendingQueryRef.current;
-      if (isOurOwnResponse) return prev;
-
+      if (sending && data.input_text === pendingQueryRef.current) return prev;
       const botMsg = makeMessage("assistant", data.answer, {
         confidence: data.confidence,
         path: data.node_path,
         scope: data.scope,
         benefits_main_graph: data.benefits_main_graph,
-        llm_mode: data.llm_mode,
-        query_mode: data.query_mode,
         history_record_id: data.history_record_id,
         synced: true
       });
-
-      // We might also need to append the user message if it's missing (syncing from another device)
       const hasUserMsg = (sessionToUpdate.messages || []).some(m => m.role === "user" && m.text === data.input_text);
       let newMessages = [...(sessionToUpdate.messages || [])];
-
-      if (!hasUserMsg) {
-        newMessages.push(makeMessage("user", data.input_text, { synced: true }));
-      }
+      if (!hasUserMsg) newMessages.push(makeMessage("user", data.input_text, { synced: true }));
       newMessages.push(botMsg);
-
       return prev.map(s => s.id === chat_id ? { ...s, messages: newMessages, updatedAt: Date.now() } : s);
     });
-  }, [lastMessage, sending, draft]);
-
-  const messages = activeSession?.messages || [];
+    refreshProfile();
+  }, [lastMessage, sending]);
 
   useEffect(() => {
     let cancelled = false;
-
     async function boot() {
       const local = getAuthSession();
       if (!local?.token || !local?.userId) {
         router.replace("/login");
         return;
       }
-
       try {
         const sessionData = await session(local.token);
         if (cancelled) return;
-        const normalized = {
-          token: local.token,
-          userId: sessionData.user_id,
-          tier: sessionData.tier,
-          sessionExpiresAt: sessionData.session_expires_at,
-        };
-        setAuth(normalized);
-
+        setAuth({ token: local.token, userId: sessionData.user_id, tier: sessionData.tier });
         const existing = loadSessions(sessionData.user_id);
         if (existing.length === 0) {
-          const first = createSession("New chat");
+          const first = createSession("Initial Sequence");
           setSessions([first]);
           setActiveId(first.id);
           router.replace(`?chatId=${first.id}`);
         } else {
           setSessions(existing);
-          if (urlChatId && existing.some(s => s.id === urlChatId)) {
-            setActiveId(urlChatId);
-          } else {
+          if (urlChatId && existing.some(s => s.id === urlChatId)) setActiveId(urlChatId);
+          else {
             setActiveId(existing[0].id);
             router.replace(`?chatId=${existing[0].id}`);
           }
         }
-
-        await refreshSystemMeta();
-      } catch {
+        await Promise.all([refreshSystemMeta(), refreshProfile(sessionData.user_id)]);
+      } catch (err) {
         clearAuthSession();
         router.replace("/login");
-        return;
       } finally {
         if (!cancelled) setChecking(false);
       }
     }
-
     boot();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [router]);
 
   useEffect(() => {
-    if (!auth?.userId) return;
-    saveSessions(auth.userId, sessions);
+    if (auth?.userId) saveSessions(auth.userId, sessions);
   }, [auth, sessions]);
 
   async function refreshSystemMeta() {
     try {
       const [h, l] = await Promise.all([health(), llmStatus()]);
-      setMeta({
-        health: `${h.store} | ${h.persistent_memory ? "persistent" : "memory-only"}`,
-        llm: `${l.backend}/${l.model} | policy=${l.policy} | ${l.reachable ? "reachable" : "offline"}`,
-      });
+      setMeta({ health: h.store, llm: l.model });
     } catch {
       setMeta({ health: "offline", llm: "offline" });
     }
   }
 
-  function withActiveSession(mutator) {
-    setSessions((prev) => {
-      const current = prev.find((item) => item.id === activeId);
-      if (!current) return prev;
-      const updated = mutator(current);
-      return upsertSession(prev, updated);
-    });
-  }
-
-  function appendMessage(role, text, metaPayload = null) {
-    const message = makeMessage(role, text, metaPayload);
-    withActiveSession((sessionItem) => {
-      const isFirstUserMessage = role === "user" && (sessionItem.messages || []).length === 0;
-      return {
-        ...sessionItem,
-        title: isFirstUserMessage ? normalizeTitle(text) : sessionItem.title,
-        updatedAt: Date.now(),
-        messages: [...(sessionItem.messages || []), message],
-      };
-    });
-    return message.id;
-  }
-
-  function patchMessage(messageId, patch) {
-    withActiveSession((sessionItem) => {
-      const nextMessages = (sessionItem.messages || []).map((message) => {
-        if (message.id !== messageId) return message;
-        const nextMeta = patch.meta ? { ...(message.meta || {}), ...patch.meta } : message.meta;
-        return { ...message, ...patch, meta: nextMeta };
-      });
-      return {
-        ...sessionItem,
-        updatedAt: Date.now(),
-        messages: nextMessages,
-      };
-    });
-  }
-
-  async function checkEvolution(messageId, recordId) {
-    if (!recordId) return;
+  async function refreshProfile(uid) {
+    const targetUid = uid || auth?.userId;
+    if (!targetUid) return;
     try {
-      const data = await queryHistoryEvolution(recordId);
-      patchMessage(messageId, {
-        meta: {
-          evolution: {
-            changed: data.changed,
-            updated_answer: data.updated_answer,
-            frozen_snapshot: data.frozen_snapshot,
-            confidence_delta: data.confidence_delta,
-            checkedAt: Date.now(),
-          },
-        },
-      });
-    } catch (err) {
-      console.error("Evolution check failed:", err);
-    }
+      const data = await userProfile(targetUid);
+      setProfile(data);
+    } catch {}
   }
 
   async function sendQuery() {
     const text = draft.trim();
     if (!text || sending || !auth?.userId) return;
-
     setDraft("");
     pendingQueryRef.current = text;
     setSending(true);
-    setStatus("Thinking...");
+    setStatus("Tracing paths...");
     appendMessage("user", text);
-
     try {
-      const data = await query({
-        text,
-        user_id: auth.userId,
-        scope: "auto",
-        domain: "auto",
-        chat_id: activeId,
-      });
-
+      const data = await query({ text, user_id: auth.userId, scope: "auto", chat_id: activeId });
       const botMessageId = appendMessage("assistant", "", {
         confidence: data.confidence,
         path: data.node_path,
         scope: data.scope,
         benefits_main_graph: data.benefits_main_graph,
-        llm_mode: data.llm_mode,
-        query_mode: data.query_mode,
         history_record_id: data.history_record_id,
       });
-
-      const words = String(data.answer || "").split(/\s+/).filter(Boolean);
-      let partial = "";
+      const words = String(data.answer || "").split(" ");
+      let currentText = "";
       for (const word of words) {
-        partial = partial ? `${partial} ${word}` : word;
-        patchMessage(botMessageId, { text: partial });
-        await sleep(12);
+        currentText += (currentText ? " " : "") + word;
+        patchMessage(botMessageId, { text: currentText });
+        await sleep(10);
       }
-
-      patchMessage(botMessageId, {
-        text: data.answer,
-        meta: {
-          confidence: data.confidence,
-          path: data.node_path,
-          scope: data.scope,
-          benefits_main_graph: data.benefits_main_graph,
-          llm_mode: data.llm_mode,
-          query_mode: data.query_mode,
-          history_record_id: data.history_record_id,
-        },
-      });
-
-      setStatus(`Answered · scope=${data.scope} · mode=${data.query_mode}`);
-      setRefreshSignal((value) => value + 1);
+      setStatus("Result Anchored");
+      setRefreshSignal((v) => v + 1);
+      refreshProfile();
     } catch (err) {
-      appendMessage("assistant", `Request failed: ${err.message}`);
-      setStatus("Request failed");
+      appendMessage("assistant", `Cognitive blockage: ${err.message}`);
+      setStatus("Sequence Error");
     } finally {
       setSending(false);
       pendingQueryRef.current = "";
     }
   }
 
-  function createNewChat() {
-    const fresh = createSession("New chat");
-    setSessions((prev) => upsertSession(prev, fresh));
-    switchSession(fresh.id);
-    setStatus("New chat started");
-  }
-
-  function switchSession(id) {
-    setActiveId(id);
-    router.push(`?chatId=${id}`);
-  }
-
-  function handleDeleteSession(id, event) {
-    event.stopPropagation();
-    const updated = deleteSession(sessions, id);
-    setSessions(updated);
-    if (updated.length === 0) {
-      const first = createSession("New chat");
-      setSessions([first]);
-      switchSession(first.id);
-    } else if (activeId === id) {
-      switchSession(updated[0].id);
-    }
-  }
-
-  async function doLogout() {
-    if (auth?.token) {
-      try {
-        await logout(auth.token);
-      } catch {
-        // Ignore logout failures and clear local session anyway.
-      }
-    }
-    clearAuthSession();
-    router.replace("/login");
-  }
-
-  if (checking) {
-    return <main className="page center">Checking session...</main>;
-  }
+  if (checking) return <div className="page center mono" style={{color:'var(--accent)'}}>BOOTING COGNITIVE RUNTIME...</div>;
 
   return (
-    <main className="page chat-layout">
-      <aside className="left-rail">
+    <div className="chat-layout">
+      {/* SIDEBAR */}
+      <aside className="card-container left-rail">
         <div className="brand-box">
           <Logo theme={theme} className="rail-logo" />
-          <p>Local-first memory agent with chat and graph introspection.</p>
         </div>
-
-        <div className="meta-box">
-          <div>user: <strong>{auth?.userId}</strong></div>
-          <div>tier: <strong>{auth?.tier}</strong></div>
-          <div>health: {meta.health}</div>
-          <div>llm: {meta.llm}</div>
-        </div>
-
-        <div className="rail-actions">
-          <button onClick={createNewChat}>New Chat</button>
-          <button
-            onClick={async () => {
-              await refreshSystemMeta();
-              setRefreshSignal((value) => value + 1);
-              setStatus("Refreshed");
-            }}
-          >
-            Refresh
-          </button>
-          <button onClick={() => router.push("/graphs")}>Open Graphs</button>
-          <button onClick={doLogout}>Logout</button>
-        </div>
-
-        <div className="chat-history-container">
-          <div className="history-header">
-            <span>Recent Activity</span>
-            <button className="new-chat-btn" onClick={createNewChat} title="New Chat">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </button>
+        
+        <div className="meta-box mono">
+          <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+             <Zap size={14} color="var(--accent)" />
+             <span>BALANCE: <strong>{profile?.credit_balance ?? 0}</strong></span>
           </div>
-          <div className="chat-session-list">
-            {sessions.map((item) => (
-              <div
-                key={item.id}
-                className={`session-item ${item.id === activeId ? "active" : ""}`}
-                onClick={() => switchSession(item.id)}
-              >
-                <div className="session-icon">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                </div>
-                <div className="session-info">
-                  <strong>{item.title || "Untitled Chat"}</strong>
-                  <p>{item.last_answer ? (item.last_answer.slice(0, 40) + (item.last_answer.length > 40 ? "..." : "")) : new Date(item.updatedAt).toLocaleString()}</p>
-                </div>
-                {sessions.length > 1 && (
-                  <button
-                    className="delete-session-btn"
-                    onClick={(e) => handleDeleteSession(item.id, e)}
-                    title="Delete Chat"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            ))}
+          <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+             <ShieldCheck size={14} color="var(--secondary)" />
+             <span>TIER: {profile?.tier?.toUpperCase()}</span>
           </div>
         </div>
 
+        <div className="rail-actions mono" style={{display:'grid', gap:'8px', padding:'12px 24px'}}>
+           <button className="flex items-center gap-2" onClick={() => {
+               const fresh = createSession("New Sequence");
+               setSessions(p => upsertSession(p, fresh));
+               setActiveId(fresh.id);
+               router.push(`?chatId=${fresh.id}`);
+           }}>
+             <Plus size={16} /> NEW SESSION
+           </button>
+           <button className="flex items-center gap-2" onClick={() => router.push("/graphs")}>
+              <Network size={16} /> DATA EXPLORER
+           </button>
+        </div>
+
+        <div className="chat-history-container" style={{flex:1, overflow:'hidden'}}>
+           <div className="history-header mono" style={{padding:'12px 24px', fontSize:'11px', borderBottom:'1px solid var(--border)'}}>
+              <History size={12} style={{marginRight:'8px'}}/> PREVIOUS STATES
+           </div>
+           <div className="chat-session-list" style={{padding:'8px 12px'}}>
+              {sessions.map(s => (
+                <motion.div 
+                  key={s.id} 
+                  initial={{opacity:0}} animate={{opacity:1}}
+                  className={`session-item ${s.id === activeId ? 'active' : ''}`}
+                  onClick={() => { setActiveId(s.id); router.push(`?chatId=${s.id}`); }}
+                  style={{padding:'10px 14px', borderRadius:'8px', cursor:'pointer', marginBottom:'4px'}}
+                >
+                  <div className="mono" style={{fontSize:'13px', fontWeight:600}}>{s.title}</div>
+                  <div className="mono" style={{fontSize:'9px', opacity:0.5}}>{new Date(s.updatedAt).toLocaleTimeString()}</div>
+                </motion.div>
+              ))}
+           </div>
+        </div>
+
+        <div className="brand-box" style={{borderTop:'1px solid var(--border)', borderBottom:'none', padding:'16px'}}>
+           <button onClick={() => { clearAuthSession(); router.replace("/login"); }} 
+                   style={{width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', background:'transparent', border:'1px solid var(--border)', color:'var(--muted)', padding:'8px', borderRadius:'8px', fontSize:'12px'}}>
+              <LogOut size={14} /> SYSTEM LOGOUT
+           </button>
+        </div>
       </aside>
 
-      <section className="chat-main">
+      {/* MAIN CHAT */}
+      <section className="card-container chat-main">
         <header className="chat-header">
-          <strong>{activeSession?.title || "Chat"}</strong>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span>{status}</span>
-            <ThemeToggle theme={theme} setTheme={setTheme} />
+          <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
+             <BrainCircuit size={20} color="var(--accent)" />
+             <h2 style={{fontSize:'1.3rem'}}>{activeSession?.title || "Active Reasoning"}</h2>
+          </div>
+          <div className="mono" style={{fontSize:'11px', display:'flex', gap:'20px', alignItems:'center'}}>
+             <span style={{color:'var(--muted)'}}>{status.toUpperCase()}</span>
+             <ThemeToggle theme={theme} setTheme={setTheme} />
           </div>
         </header>
 
-        <section className="message-list">
-          {messages.length === 0 && (
-            <article className="bubble assistant">
-              <div className="role">Paragi</div>
-              <div className="body">Ready. Ask any question. Personal facts auto-store in personal memory.</div>
-            </article>
-          )}
-          {messages.map((message) => (
-            <article key={message.id} className={`bubble ${message.role === "user" ? "user" : "assistant"}`}>
-              <div className="role">{message.role === "user" ? "You" : "Paragi"}</div>
-              <div className="body">{message.text}</div>
-              {message.meta && (
-                <details className="trace-details">
-                  <summary>Details</summary>
-                  <div className="trace">
-                    <div>scope: {message.meta.scope} | query_mode: {message.meta.query_mode}</div>
-                    <div>confidence: {Number(message.meta.confidence || 0).toFixed(3)} | llm_mode: {message.meta.llm_mode}</div>
-                    <div>benefits_main_graph: {String(message.meta.benefits_main_graph)}</div>
-                    <div>path: {(message.meta.path || []).join(" -> ") || "-"}</div>
-                    {message.meta.history_record_id && (
-                      <div style={{ marginTop: "8px" }}>
-                        <button
-                          className="mini-button"
-                          onClick={() => checkEvolution(message.id, message.meta.history_record_id)}
-                        >
-                          Check for updates
-                        </button>
-                      </div>
-                    )}
-                    {message.meta.evolution && (
-                      <div className="evolution-panel">
-                        <strong>
-                          {message.meta.evolution.changed
-                            ? "✨ Paragi knows more now!"
-                            : "Memory is consistent."}
-                        </strong>
-                        {message.meta.evolution.changed && (
-                          <div className="diff-view">
-                            <div className="diff-box">
-                              <small>Then:</small>
-                              <p>{message.meta.evolution.frozen_snapshot}</p>
-                            </div>
-                            <div className="diff-box">
-                              <small>Now:</small>
-                              <p>{message.meta.evolution.updated_answer}</p>
-                            </div>
-                          </div>
-                        )}
-                        <div className="evolution-meta">
-                          Confidence Δ: {message.meta.evolution.confidence_delta.toFixed(3)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </details>
+        <div className="message-list">
+          <AnimatePresence>
+          {activeSession?.messages.map((m, idx) => (
+            <motion.div 
+              key={m.id} 
+              initial={{opacity:0, y:10}}
+              animate={{opacity:1, y:0}}
+              className={`bubble ${m.role}`}
+            >
+              <div className="bubble-meta mono" style={{display:'flex', justifyContent:'space-between'}}>
+                 <span>{m.role === 'user' ? 'SIGNAL' : 'INFERENCE'}</span>
+                 <span>{new Date(m.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+              </div>
+              <div className="bubble-text">{m.text}</div>
+              {m.meta?.path && m.meta.path.length > 0 && (
+                <div className="mono" style={{fontSize:'9px', marginTop:'12px', padding:'6px 10px', background:'rgba(0,0,0,0.03)', borderRadius:'4px', color:'var(--muted)'}}>
+                  TRAVERSAL: {m.meta.path.join(' → ')}
+                </div>
               )}
-            </article>
+            </motion.div>
           ))}
-        </section>
+          </AnimatePresence>
+          {sending && (
+            <motion.div initial={{opacity:0}} animate={{opacity:1}} className="bubble assistant thinking">
+              <div className="bubble-meta mono">ACTIVATING SEMANTIC CLUSTERS...</div>
+              <div className="bubble-text">● ● ●</div>
+            </motion.div>
+          )}
+          <div id="scroll-anchor" />
+        </div>
 
-        <footer className="composer">
-          <input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") sendQuery();
-            }}
-            placeholder="Ask anything..."
-          />
-          <button onClick={sendQuery} disabled={sending}>{sending ? "Sending..." : "Send"}</button>
-        </footer>
+        <div className="composer">
+          <div style={{flex:1, position:'relative'}}>
+             <input 
+               value={draft}
+               onChange={e => setDraft(e.target.value)}
+               onKeyDown={e => e.key === 'Enter' && sendQuery()}
+               placeholder="Enter concept or query..."
+               style={{width:'100%', paddingRight:'40px'}}
+             />
+             <div className="mono" style={{position:'absolute', right:'12px', top:'50%', transform:'translateY(-50%)', fontSize:'9px', opacity:0.3}}>
+               ↵
+             </div>
+          </div>
+          <button onClick={sendQuery} disabled={sending}>
+             <Send size={18} />
+          </button>
+        </div>
       </section>
 
-      <aside className="right-rail">
+      {/* RIGHT RAIL */}
+      <aside className="card-container right-rail">
+        <header className="panel-header" style={{display:'flex', alignItems:'center', gap:'8px'}}>
+           <Network size={14} /> SEMANTIC ACTIVATION
+        </header>
         <GraphPanel userId={auth?.userId} refreshSignal={refreshSignal} />
+        
+        <div style={{padding:'24px', borderTop:'1px solid var(--border)'}} className="mono">
+           <h4 style={{fontSize:'10px', color:'var(--muted)', marginBottom:'16px', letterSpacing:'0.1em'}}>KNOWLEDGE IMPACT</h4>
+           <div style={{display:'grid', gap:'12px'}}>
+              <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px'}}>
+                 <span>Main Nodes:</span>
+                 <strong style={{color:'var(--accent)'}}>{profile?.main_nodes_contributed ?? 0}</strong>
+              </div>
+              <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px'}}>
+                 <span>Domain Depth:</span>
+                 <strong>{Object.keys(profile?.domain_nodes_contributed ?? {}).length} Fields</strong>
+              </div>
+              <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px', marginTop:'8px', paddingTop:'8px', borderTop:'1px dashed var(--border)'}}>
+                 <span>CORE HEALTH:</span>
+                 <span style={{color:'var(--ok)'}}>{meta.health?.toUpperCase()}</span>
+              </div>
+           </div>
+        </div>
       </aside>
-    </main>
+    </div>
   );
 }

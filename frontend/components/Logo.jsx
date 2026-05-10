@@ -63,10 +63,10 @@ export default function Logo({ theme = "light", className = "" }) {
         <text
           x="200"
           y="107"
-          fontFamily="'Inter','SF Pro Display','Helvetica Neue',Arial,sans-serif"
-          fontSize="70"
-          fontWeight="600"
-          letterSpacing="-2"
+          fontFamily="'Libre Baskerville', serif"
+          fontSize="72"
+          fontWeight="700"
+          letterSpacing="-1.5"
           fill={textColor}
         >
           Paragi

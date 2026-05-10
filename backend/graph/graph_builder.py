@@ -1,124 +1,106 @@
-"""graph/graph_builder.py — GraphBuilder: insert SemanticIR into the cognitive graph."""
+"""
+graph/graph_builder.py — The Semantic Compiler.
+
+Translates high-level SemanticIR into low-level graph topology.
+This is where meaning becomes structure.
+"""
 from __future__ import annotations
 
-from typing import List, Tuple
-
-from core.semantic_ir import SemanticIR, Relation
-from core.enums import EdgeType
-from core.constants import VECTOR_SIZE
-from core.logger import get_logger
-from graph.graph import GraphEngine
-
-log = get_logger(__name__)
+import hashlib
+from typing import List, Optional
+from core.semantic_ir import SemanticIR, IRRelation
+from core.enums import EdgeType, NodeType
+from .graph import CognitiveGraph
+from .node import Node
+from .edge import Edge
 
 
 class GraphBuilder:
     """
-    Bridges the encoder and the graph.
-
-    Takes a SemanticIR produced by the SemanticCompiler and:
-    1. Ensures all entities exist as graph nodes.
-    2. Inserts all extracted relations as typed edges.
-    3. Inserts LLM-extracted graph_edges.
-
-    The GraphBuilder does NOT reason — it only structures.
+    Compiler that transforms SemanticIR into graph mutations.
     """
 
-    def __init__(self, graph: GraphEngine, *, default_strength: float = 0.3) -> None:
+    def __init__(self, graph: CognitiveGraph) -> None:
         self.graph = graph
-        self.default_strength = default_strength
 
-    def insert(self, ir: SemanticIR, *, allow_learning: bool = True) -> Tuple[int, int]:
-        """
-        Insert SemanticIR into the graph.
-
-        Returns:
-            (nodes_created, edges_created) counts.
-        """
-        if not allow_learning or ir.learnability <= 0.0:
-            return 0, 0
-
-        nodes_before = self.graph.count_nodes()
-        edges_created = 0
-
-        # 1. Ensure all entities exist as nodes
+    def compile(self, ir: SemanticIR) -> None:
+        """Process a SemanticIR and update the graph."""
+        
+        # 1. Process entities and concepts as nodes
         for entity in ir.entities:
-            if entity:
-                self.graph.create_or_get_node(entity)
+            self._ensure_node(entity, NodeType.ENTITY)
+        
+        for concept in ir.concepts:
+            self._ensure_node(concept, NodeType.CONCEPT)
+            
+        # 2. Process relations as edges
+        for rel in ir.relations:
+            self._add_semantic_relation(rel)
+            
+        # 3. Process temporal markers
+        # (Implementation placeholder for temporal state updates)
+        
+        # 4. Process causal markers
+        # (Implementation placeholder for causal strengthening)
 
-        # 2. Insert extracted text relations
-        for relation in ir.relations:
-            if relation.source and relation.target:
-                edge_type = self._parse_edge_type(relation.relation)
-                strength = min(1.0, self.default_strength * relation.confidence)
-                vec = self._build_vector(ir.semantic_vector, edge_type)
-                self.graph.create_edge(
-                    relation.source, relation.target, edge_type,
-                    strength=strength, vector=vec,
-                    confidence=relation.confidence,
-                )
-                edges_created += 1
-
-        # 3. Insert LLM-extracted graph_edges (higher confidence)
-        for edge_dict in ir.graph_edges:
-            src = str(edge_dict.get("source", "")).strip()
-            tgt = str(edge_dict.get("target", "")).strip()
-            rel = str(edge_dict.get("relation", "CORRELATES")).strip().upper()
-            if src and tgt:
-                edge_type = self._parse_edge_type(rel)
-                vec = self._build_vector(ir.semantic_vector, edge_type)
-                self.graph.create_edge(
-                    src, tgt, edge_type,
-                    strength=self.default_strength,
-                    vector=vec, confidence=0.7,
-                )
-                edges_created += 1
-
-        # 4. Personal fact: store self → "attribute value" edge
-        if ir.intent == "personal_fact" and ir.personal_attribute and ir.personal_value:
-            memory_label = f"{ir.personal_attribute} {ir.personal_value}"
-            self.graph.create_edge(
-                "self", memory_label, EdgeType.CORRELATES,
-                strength=0.95,
-                vector=self._build_vector(ir.semantic_vector, EdgeType.CORRELATES),
-                confidence=0.99,
+    def _ensure_node(self, label: str, node_type: NodeType) -> str:
+        """Ensure a node exists for a given label, creating it if necessary."""
+        node_id = self._generate_id(label)
+        existing = self.graph.get_node(node_id)
+        
+        if not existing:
+            new_node = Node(
+                id=node_id,
+                label=label,
+                type=node_type, 
+                confidence=1.0
             )
-            edges_created += 1
+            self.graph.add_node(new_node)
+            
+        return node_id
 
-        nodes_created = max(0, self.graph.count_nodes() - nodes_before)
-        log.debug(f"GraphBuilder: +{nodes_created} nodes, +{edges_created} edges")
-        return nodes_created, edges_created
+    def create_or_reinforce_edge(
+        self, 
+        source_label: str, 
+        target_label: str, 
+        edge_type: EdgeType,
+        weight: float = 0.2,
+        confidence: float = 1.0
+    ) -> None:
+        """Helper for manual or autonomous edge creation."""
+        from core.semantic_ir import IRRelation
+        rel = IRRelation(
+            source=source_label,
+            target=target_label,
+            relation=edge_type,
+            confidence=confidence
+        )
+        self._add_semantic_relation(rel)
 
-    @staticmethod
-    def _parse_edge_type(rel: str) -> EdgeType:
-        """Parse a relation string to EdgeType, defaulting to CORRELATES."""
-        try:
-            return EdgeType(rel.upper())
-        except ValueError:
-            return EdgeType.CORRELATES
+    def _add_semantic_relation(self, rel: IRRelation) -> None:
+        """Add or reinforce a directed edge between concepts."""
+        source_id = self._ensure_node(rel.source, NodeType.CONCEPT)
+        target_id = self._ensure_node(rel.target, NodeType.CONCEPT)
+        
+        existing_edge = self.graph.get_edge(source_id, target_id)
+        
+        if existing_edge:
+            # Reinforce if it's the same type
+            if existing_edge.edge_type == rel.relation:
+                existing_edge.reinforce()
+                self.graph.add_edge(existing_edge) # Update store
+        else:
+            # Create new edge
+            new_edge = Edge(
+                source=source_id,
+                target=target_id,
+                edge_type=rel.relation,
+                weight=0.2, # Initial weight
+                confidence=rel.confidence,
+                metadata=rel.attributes
+            )
+            self.graph.add_edge(new_edge)
 
-    @staticmethod
-    def _build_vector(semantic_vector: List[float], edge_type: EdgeType) -> List[float]:
-        """Build a 1024-dim edge vector from the semantic vector."""
-        vec = [0.0] * VECTOR_SIZE
-        # Map 700-dim semantic vector into positions 0-699
-        for i, v in enumerate(semantic_vector[:700]):
-            vec[i] = v
-        # Set edge-type discriminant dimension
-        type_dims = {
-            EdgeType.CAUSES: 850,
-            EdgeType.IS_A: 860,
-            EdgeType.TEMPORAL: 870,
-            EdgeType.ANALOGY: 880,
-            EdgeType.CONTRADICTS: 890,
-            EdgeType.CORRELATES: 900,
-        }
-        dim = type_dims.get(edge_type, 910)
-        if dim < VECTOR_SIZE:
-            vec[dim] = 1.0
-        return vec
-
-
-def insert_ir(graph: GraphEngine, ir: SemanticIR, *, allow_learning: bool = True) -> Tuple[int, int]:
-    """Convenience function for inserting a SemanticIR into the graph."""
-    return GraphBuilder(graph).insert(ir, allow_learning=allow_learning)
+    def _generate_id(self, label: str) -> str:
+        """Generate a deterministic ID for a label."""
+        return hashlib.sha256(label.lower().strip().encode()).hexdigest()[:16]

@@ -1,30 +1,78 @@
-"""reasoning/causal_reasoner.py — Causal reasoning via graph path consensus."""
+"""
+reasoning/causal_reasoner.py — Causal inference engine.
+"""
 from __future__ import annotations
+
+from typing import Dict, Any, List
 from core.semantic_ir import SemanticIR
-from core.constants import EDGE_RELATION_TEXT
-from graph.graph import GraphEngine
-from .scorer import score_paths, summarize_paths
-from .confidence import compute_path_confidence
+from core.enums import EdgeType
+from graph.graph import CognitiveGraph
+from graph.activation.spread import spread_activation
+from graph.traversal.constrained import constrained_traversal
 
 
-def causal_reason(graph: GraphEngine, ir: SemanticIR, source: str, target: str) -> "ReasoningResult":  # noqa
-    from .engine import ReasoningResult
-    consensus = graph.path_consensus(source, target, max_hops=7, max_paths=64)
-    paths = graph.find_paths(source, target, max_hops=7, max_paths=64,
-                             edge_type_filter=["CAUSES", "CORRELATES", "TEMPORAL"])
-    confidence = compute_path_confidence(paths)
-    node_path = paths[0].node_labels if paths else [source, target]
+class CausalReasoner:
+    """
+    Reasoning by following CAUSES edges and spreading activation.
+    """
 
-    if consensus.path_count == 0:
-        return ReasoningResult(answer="", confidence=0.0, node_path=[source, target],
-                               mode="causal", used_fallback=True)
+    def __init__(self, graph: CognitiveGraph) -> None:
+        self.graph = graph
 
-    relation = EDGE_RELATION_TEXT.get(consensus.inferred_type.value if hasattr(consensus.inferred_type, "value") else str(consensus.inferred_type), "is related to")
-    answer = f"{source} {relation} {target}"
-    if consensus.path_count > 1:
-        answer += f" (supported by {consensus.path_count} reasoning paths)"
-    return ReasoningResult(
-        answer=answer, confidence=confidence, paths=paths,
-        node_path=node_path, mode="causal",
-        extra={"path_count": consensus.path_count, "inferred_type": str(consensus.inferred_type)},
-    )
+    def reason(self, ir: SemanticIR) -> Dict[str, Any]:
+        """
+        Perform causal inference based on SemanticIR.
+        """
+        # 1. Identify source concepts
+        sources = ir.entities + ir.concepts
+        if not sources:
+            return {"error": "No causal sources identified"}
+            
+        source_ids = [self._get_node_id(s) for s in sources]
+        source_ids = [sid for sid in source_ids if sid] # Filter None
+        
+        # 2. Pulse activation into sources
+        activated_nodes = {}
+        for sid in source_ids:
+            deltas = spread_activation(self.graph, sid, initial_energy=1.0)
+            activated_nodes.update(deltas)
+            
+        # 3. Find causal chains (constrained traversal)
+        causal_chains = []
+        for sid in source_ids:
+            chain = constrained_traversal(
+                self.graph, sid, 
+                allowed_edge_types=[EdgeType.CAUSES, EdgeType.ASSOCIATED_WITH, EdgeType.IS_A],
+                max_depth=4
+            )
+            if len(chain) > 1:
+                causal_chains.append(chain)
+                
+        # 4. Map back to human-readable labels
+        results = []
+        for chain in causal_chains:
+            labels = []
+            for nid in chain:
+                node = self.graph.get_node(nid)
+                if node:
+                    labels.append(node.label)
+            if labels:
+                results.append(" -> ".join(labels))
+            
+        # Filter activated nodes to only those that exist
+        active_labels = []
+        for nid in activated_nodes:
+            node = self.graph.get_node(nid)
+            if node:
+                active_labels.append(node.label)
+                
+        return {
+            "mode": "causal",
+            "chains": results,
+            "activated_concepts": active_labels
+        }
+
+    def _get_node_id(self, label: str) -> Optional[str]:
+        # Helper to find node ID by label (should probably be in CognitiveGraph)
+        import hashlib
+        return hashlib.sha256(label.lower().strip().encode()).hexdigest()[:16]

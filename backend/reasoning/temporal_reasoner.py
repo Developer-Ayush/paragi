@@ -1,71 +1,47 @@
-"""reasoning/temporal_reasoner.py — Temporal sequence reasoning and state transitions."""
+"""
+reasoning/temporal_reasoner.py — Temporal reasoning and sequencing.
+"""
 from __future__ import annotations
 
-from typing import List, Set, Dict, Optional
-from graph.graph import GraphEngine, PathMatch
+import hashlib
+from typing import Dict, Any, List
 from core.semantic_ir import SemanticIR
 from core.enums import EdgeType
-from .engine import ReasoningResult
+from graph.graph import CognitiveGraph
+from graph.traversal.constrained import constrained_traversal
 
 
-def temporal_reason(graph: GraphEngine, ir: SemanticIR, source: str, target: Optional[str] = None) -> ReasoningResult:
+class TemporalReasoner:
     """
-    Constructs a temporal sequence or state transition chain.
-    If target is provided, finds the sequence from source to target.
-    If target is None, finds the 'future' timeline from source.
+    Reasoning by following TEMPORAL and SEQUENCE edges.
     """
-    node = graph.get_node_by_label(source)
-    if node is None:
-        return ReasoningResult(answer="", confidence=0.0, mode="temporal", used_fallback=True)
 
-    # 1. Traverse TEMPORAL and SEQUENCE edges
-    timeline: List[str] = [source]
-    visited = {node.id}
-    current_id = node.id
-    
-    paths: List[PathMatch] = []
-    if target:
-        # Targeted search
-        paths = graph.find_paths(source, target, max_hops=7, edge_type_filter=[EdgeType.TEMPORAL, EdgeType.SEQUENCE])
-    
-    # 2. General timeline expansion (from source forward)
-    for _ in range(5):
-        next_candidates = []
-        for edge in graph.store.list_outgoing(current_id):
-            if edge.type in (EdgeType.TEMPORAL, EdgeType.SEQUENCE) and edge.target not in visited:
-                next_candidates.append(edge)
-        
-        if not next_candidates:
-            break
+    def __init__(self, graph: CognitiveGraph) -> None:
+        self.graph = graph
+
+    def reason(self, ir: SemanticIR) -> Dict[str, Any]:
+        # 1. Identify anchor event
+        anchor = ir.entities[0] if ir.entities else None
+        if not anchor:
+            return {"error": "No temporal anchor identified"}
             
-        # Select strongest transition
-        next_edge = max(next_candidates, key=lambda e: e.strength)
-        target_label = graph.get_node_label(next_edge.target)
-        timeline.append(target_label)
-        visited.add(next_edge.target)
-        current_id = next_edge.target
-
-    if len(timeline) <= 1 and not paths:
-        return ReasoningResult(
-            answer=f"I don't have temporal information about '{source}'.",
-            confidence=0.0,
-            mode="temporal"
+        anchor_id = self._get_node_id(anchor)
+        
+        # 2. Trace timeline
+        timeline = constrained_traversal(
+            self.graph, anchor_id,
+            allowed_edge_types=[EdgeType.TEMPORAL, EdgeType.SEQUENCE],
+            max_depth=5
         )
+        
+        # 3. Format results
+        events = [self.graph.get_node(nid).label for nid in timeline]
+        
+        return {
+            "mode": "temporal",
+            "anchor": anchor,
+            "timeline": events
+        }
 
-    # 3. Format answer
-    if target and paths:
-        best_path = paths[0]
-        answer = f"The sequence from '{source}' to '{target}' is: " + " -> ".join(best_path.node_labels) + "."
-        confidence = best_path.confidence
-    else:
-        answer = f"The temporal sequence starting from '{source}' is: " + " -> ".join(timeline) + "."
-        confidence = 0.7
-
-    return ReasoningResult(
-        answer=answer,
-        confidence=confidence,
-        node_path=timeline if not paths else paths[0].node_labels,
-        paths=paths,
-        mode="temporal",
-        extra={"timeline_length": len(timeline)}
-    )
+    def _get_node_id(self, label: str) -> str:
+        return hashlib.sha256(label.lower().strip().encode()).hexdigest()[:16]

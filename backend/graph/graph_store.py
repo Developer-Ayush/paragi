@@ -1,77 +1,56 @@
-"""graph/graph_store.py — The primary interface for graph data persistence."""
+"""
+graph/graph_store.py — The primary interface for graph data persistence.
+"""
 from __future__ import annotations
 
 import threading
-from typing import Dict, List, Optional
-from .node import Node
-from .edge import Edge
-from .schemas import NodeSchema, EdgeSchema
+from typing import Dict, List, Optional, Any
+
 
 class GraphStore:
+    """Interface for graph storage."""
+    def list_nodes(self) -> List[Dict[str, Any]]: raise NotImplementedError
+    def upsert_node(self, data: Dict[str, Any]) -> None: raise NotImplementedError
+    def delete_node(self, node_id: str) -> None: raise NotImplementedError
+    
+    def list_edges(self) -> List[Dict[str, Any]]: raise NotImplementedError
+    def upsert_edge(self, data: Dict[str, Any]) -> None: raise NotImplementedError
+    def delete_edge(self, source: str, target: str) -> None: raise NotImplementedError
+    
+    def close(self) -> None: pass
+
+
+class InMemoryGraphStore(GraphStore):
     """
     In-memory graph store representing the core semantic topography.
-    Provides fast O(1) access to Nodes and Edges.
     """
     def __init__(self) -> None:
-        self._nodes: Dict[str, Node] = {}
-        self._edges: Dict[str, Edge] = {}
-        self._adj_out: Dict[str, List[str]] = {}
-        self._adj_in: Dict[str, List[str]] = {}
+        self._nodes: Dict[str, Dict[str, Any]] = {}
+        self._edges: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.RLock()
 
-    def add_node(self, node: Node) -> None:
+    def list_nodes(self) -> List[Dict[str, Any]]:
         with self._lock:
-            self._nodes[node.id] = node
-            if node.id not in self._adj_out:
-                self._adj_out[node.id] = []
-                self._adj_in[node.id] = []
+            return list(self._nodes.values())
 
-    def get_node(self, node_id: str) -> Optional[Node]:
+    def upsert_node(self, data: Dict[str, Any]) -> None:
         with self._lock:
-            return self._nodes.get(node_id)
+            self._nodes[data["id"]] = data
 
     def delete_node(self, node_id: str) -> None:
         with self._lock:
             self._nodes.pop(node_id, None)
-            self._adj_out.pop(node_id, None)
-            self._adj_in.pop(node_id, None)
 
-    def list_node_ids(self) -> List[str]:
+    def list_edges(self) -> List[Dict[str, Any]]:
         with self._lock:
-            return list(self._nodes.keys())
+            return list(self._edges.values())
 
-    def add_edge(self, edge: Edge) -> None:
+    def upsert_edge(self, data: Dict[str, Any]) -> None:
         with self._lock:
-            self._edges[edge.id] = edge
-            if edge.source not in self._adj_out:
-                self._adj_out[edge.source] = []
-            if edge.target not in self._adj_in:
-                self._adj_in[edge.target] = []
-            
-            if edge.id not in self._adj_out[edge.source]:
-                self._adj_out[edge.source].append(edge.id)
-            if edge.id not in self._adj_in[edge.target]:
-                self._adj_in[edge.target].append(edge.id)
+            key = f"{data['source']}->{data['target']}"
+            self._edges[key] = data
 
-    def get_edge(self, edge_id: str) -> Optional[Edge]:
+    def delete_edge(self, source: str, target: str) -> None:
         with self._lock:
-            return self._edges.get(edge_id)
-
-    def delete_edge(self, edge_id: str) -> None:
-        with self._lock:
-            edge = self._edges.pop(edge_id, None)
-            if edge:
-                if edge.id in self._adj_out.get(edge.source, []):
-                    self._adj_out[edge.source].remove(edge.id)
-                if edge.id in self._adj_in.get(edge.target, []):
-                    self._adj_in[edge.target].remove(edge.id)
-
-    def get_outgoing(self, node_id: str) -> List[Edge]:
-        with self._lock:
-            edge_ids = self._adj_out.get(node_id, [])
-            return [self._edges[eid] for eid in edge_ids if eid in self._edges]
-
-    def get_incoming(self, node_id: str) -> List[Edge]:
-        with self._lock:
-            edge_ids = self._adj_in.get(node_id, [])
-            return [self._edges[eid] for eid in edge_ids if eid in self._edges]
+            key = f"{source}->{target}"
+            self._edges.pop(key, None)

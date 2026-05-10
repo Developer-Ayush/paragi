@@ -1,31 +1,36 @@
-"""graph/memory/semantic.py — Semantic long-term memory."""
+"""
+graph/memory/semantic.py — Semantic Memory.
+
+The long-term permanent knowledge graph of the system.
+"""
 from __future__ import annotations
-from graph.graph_store import GraphStore
-from core.enums import EdgeType
+
+from typing import List, Optional
+from ..graph import CognitiveGraph
+from ..node import Node
+
 
 class SemanticMemory:
     """
-    Long-term factual and conceptual memory store.
-    Provides semantic search over stabilized knowledge.
+    Interface for interacting with the permanent cognitive graph.
     """
-    def __init__(self, store: GraphStore):
-        self.store = store
 
-    def retrieve_facts(self, concept_id: str) -> list[dict]:
-        """Retrieves strong, stable facts connected to a concept."""
-        facts = []
-        outgoing = self.store.get_outgoing(concept_id)
-        
-        for edge in outgoing:
-            # Only return stabilized knowledge
-            if edge.strength > 0.4:
-                target_node = self.store.get_node(edge.target)
-                target_label = target_node.label if target_node else edge.target
-                facts.append({
-                    "relation": edge.type.value,
-                    "target": target_label,
-                    "confidence": edge._data.confidence,
-                    "strength": edge.strength
-                })
-        
-        return sorted(facts, key=lambda x: x["strength"], reverse=True)
+    def __init__(self, graph: CognitiveGraph) -> None:
+        self.graph = graph
+
+    def query_concept(self, label: str) -> Optional[Node]:
+        """Find a concept in semantic memory by label."""
+        # Simple lookup in graph cache
+        for node in self.graph._nodes.values():
+            if node.label.lower() == label.lower():
+                return node
+        return None
+
+    def get_related_concepts(self, node_id: str) -> List[Node]:
+        """Retrieve 1-hop neighbors from semantic memory."""
+        neighbors = []
+        for edge in self.graph.get_outgoing_edges(node_id):
+            target = self.graph.get_node(edge.target)
+            if target:
+                neighbors.append(target)
+        return neighbors
