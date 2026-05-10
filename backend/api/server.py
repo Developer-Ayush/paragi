@@ -51,6 +51,10 @@ app.add_middleware(
 # ── Mount route modules ────────────────────────────────────────────────────────
 from api.routes import query as query_routes
 from api.routes import reasoning as reasoning_routes
+from api.routes import auth as auth_routes
+from api.routes import health as health_routes
 
 app.include_router(query_routes.router)
 app.include_router(reasoning_routes.router)
+app.include_router(auth_routes.router)
+app.include_router(health_routes.router)
