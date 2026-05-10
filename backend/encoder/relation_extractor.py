@@ -95,7 +95,7 @@ def _extract_via_heuristic(parsed: ParsedText) -> List[IRRelation]:
         relations.append(IRRelation(source=src.strip(), relation=EdgeType.CAUSES, target=tgt.strip(), confidence=0.8))
 
     # Pattern: "X is Y"
-    is_a = re.findall(r"([\w\s]+?)\s+is\s+(?:a|an|the)?\s*([\w\s]+)", text)
+    is_a = re.findall(r"([\w\s]+?)\s+is\s+(?:a\s+|an\s+|the\s+)?([\w\s]+)", text)
     for src, tgt in is_a:
         relations.append(IRRelation(source=src.strip(), relation=EdgeType.IS_A, target=tgt.strip(), confidence=0.7))
 
