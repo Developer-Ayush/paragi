@@ -2,8 +2,8 @@ services:
   - type: web
     name: paragi-backend
     env: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:$PORT
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.0
@@ -12,8 +12,8 @@ services:
       - key: LOG_LEVEL
         value: info
       - key: FRONTEND_URL
-        value: "*" # Set this to your Vercel URL after deployment
+        value: "*"
     disk:
       name: paragi-data
-      mountPath: /opt/render/project/src/backend/data
+      mountPath: /opt/render/project/src/data
       sizeGB: 10
