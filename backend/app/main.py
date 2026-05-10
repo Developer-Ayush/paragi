@@ -846,7 +846,7 @@ def reasoning_contradiction(payload: ContradictionRequest, request: Request) -> 
 
 
 @app.post("/query")
-def query(payload: QueryRequest, request: Request) -> dict:
+async def query(payload: QueryRequest, request: Request) -> dict:
     user_id = sanitize_user_id(payload.user_id)
     _ = get_graph(request)
     rewriter = get_query_rewriter(request)
