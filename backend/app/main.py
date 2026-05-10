@@ -1226,26 +1226,65 @@ def query_history_evolution(record_id: str, request: Request, max_hops: int = 7,
     safe_hops = max(1, min(12, int(max_hops)))
     safe_paths = max(1, min(512, int(max_paths)))
     pipeline = get_pipeline_for_scope(request, scope=record.scope, user_id=record.user_id)
-    rewrite = get_query_rewriter(request).rewrite(record.raw_text)
-    replay = pipeline.run(rewrite.rewritten_text, max_hops=safe_hops, max_paths=safe_paths, allow_learning=False)
-    intent_step = next((step for step in replay.steps if step.startswith("intent:")), "intent:unknown")
-    intent_kind = intent_step.split(":", 1)[1] if ":" in intent_step else "unknown"
     llm = get_llm_refiner(request)
     llm_policy = request.app.state.settings.llm_policy
+    rewrite = get_query_rewriter(request).rewrite(record.raw_text)
+    replay = pipeline.run(rewrite.rewritten_text, max_hops=safe_hops, max_paths=safe_paths, allow_learning=False)
+    # Phase 2: If confidence is low, attempt evolution (Realtime Search + Learning)
+    evolved = False
+    new_edges_count = 0
+    if replay.confidence < 0.2:
+        # Import necessary components locally if needed or use existing ones
+        from .realtime_lookup import fetch_realtime_answer
+        rt = fetch_realtime_answer(rewrite.rewritten_text)
+        if rt:
+            rt_answer, rt_source = rt
+            # Digest this into the graph
+            extracted_edges = llm.digest_into_graph(rt_answer)
+            if extracted_edges:
+                graph = get_graph(request)
+                for edge in extracted_edges:
+                    graph.create_edge(
+                        edge["source"],
+                        edge["target"],
+                        EdgeType(edge["relation"]),
+                        strength=0.75,
+                        vector=pipeline.encoder.encode(f"{edge['source']} {edge['target']}").semantic_vector
+                    )
+                new_edges_count = len(extracted_edges)
+                evolved = True
+                
+                # Re-run pipeline to see if we now have an answer
+                replay = pipeline.run(rewrite.rewritten_text, max_hops=safe_hops, max_paths=safe_paths, allow_learning=False)
+
+    intent_step = next((step for step in replay.steps if step.startswith("intent:")), "intent:unknown")
+    intent_kind = intent_step.split(":", 1)[1] if ":" in intent_step else "unknown"
+
     llm_mode = "skip"
     llm_prefers_direct = intent_kind == "unknown" or (
         replay.confidence < 0.08 and len(replay.node_path) <= 1
     )
-    llm_result = RefineResult(
-        answer=replay.answer,
-        used=False,
-        backend=llm.backend,
-        model=llm.model,
-        error=None,
-        total_duration_ms=None,
-    )
-
-    if llm.backend in ("ollama", "groq"):
+    
+    if evolved:
+        llm_mode = "evolved"
+        llm_result = llm.format_response(
+            question=rewrite.rewritten_text,
+            graph_answer=replay.answer,
+            node_path=replay.node_path,
+            confidence=replay.confidence,
+            intent_kind=intent_kind,
+        )
+    else:
+        llm_result = RefineResult(
+            answer=replay.answer,
+            used=False,
+            backend=llm.backend,
+            model=llm.model,
+            error=None,
+            total_duration_ms=None,
+        )
+        
+    if not evolved and llm.backend in ("ollama", "groq"):
         if llm_policy == "always":
             if llm_prefers_direct:
                 llm_mode = "direct"

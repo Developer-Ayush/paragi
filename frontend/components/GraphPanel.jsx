@@ -67,8 +67,8 @@ export default function GraphPanel({ userId, refreshSignal = 0 }) {
   return (
     <div className="graph-panel">
       <div className="graph-top-meta">
-        <strong>Knowledge Panel</strong>
-        <span>{loading ? "refreshing..." : `user: ${userId}`}</span>
+        <strong style={{ color: 'var(--accent)', fontSize: '14px', letterSpacing: '0.05em' }}>KNOWLEDGE PANEL</strong>
+        <span style={{ color: 'var(--muted)', fontSize: '11px' }}>{loading ? "refreshing..." : `user: ${userId}`}</span>
       </div>
 
       {error && <div className="panel-error">{error}</div>}

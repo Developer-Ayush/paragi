@@ -51,9 +51,9 @@ export default function ChatWorkspace() {
   // Handle cross-session synchronization via WebSocket
   useEffect(() => {
     if (!lastMessage || lastMessage.type !== "chat_update") return;
-    
+
     const { chat_id, data } = lastMessage;
-    
+
     // If the message is for a different session, update that session in the background
     // If it's for the current session, append it (unless we are already handling it)
     setSessions(prev => {
@@ -85,7 +85,7 @@ export default function ChatWorkspace() {
       // We might also need to append the user message if it's missing (syncing from another device)
       const hasUserMsg = (sessionToUpdate.messages || []).some(m => m.role === "user" && m.text === data.input_text);
       let newMessages = [...(sessionToUpdate.messages || [])];
-      
+
       if (!hasUserMsg) {
         newMessages.push(makeMessage("user", data.input_text, { synced: true }));
       }

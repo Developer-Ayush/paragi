@@ -215,6 +215,10 @@ class LLMRefiner:
                 used=False, backend=self.backend, model=self.model,
                 error="empty_llm_output", total_duration_ms=duration_ms,
             )
+        return RefineResult(
+            answer=out, used=True, backend=self.backend, model=self.model,
+            error=None, total_duration_ms=duration_ms,
+        )
     def digest_into_graph(self, text: str) -> list[dict]:
         """Extract factual edges from a provided text block for graph learning."""
         content = (text or "").strip()
