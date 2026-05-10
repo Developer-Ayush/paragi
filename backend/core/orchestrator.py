@@ -66,8 +66,15 @@ class CognitiveOrchestrator:
         # 4. Decode & Format: ReasoningResult -> Final API Output
         # Extract primary answer from reasoner result
         chains = reasoning_result.get("chains", [])
-        answer = ". ".join(chains) if chains else "I don't have enough information to form a reasoning chain."
         
+        # Handle intents
+        if ir.intent == "greeting":
+            answer = "Hello. Paragi Cognitive Runtime is online. How can I assist with your knowledge graph today?"
+        elif chains:
+            answer = ". ".join(chains)
+        else:
+            answer = "I don't have enough information to form a reasoning chain."
+            
         response = self.formatter.format(
             text=answer,
             metadata=reasoning_result
