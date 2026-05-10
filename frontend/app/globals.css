@@ -74,6 +74,31 @@ code, pre, .mono {
   margin: 0 auto;
 }
 
+@media (max-width: 1200px) {
+  .chat-layout {
+    grid-template-columns: 260px 1fr;
+  }
+  .right-rail {
+    display: none; /* Hide graph on medium screens to keep chat usable */
+  }
+}
+
+@media (max-width: 800px) {
+  .chat-layout {
+    grid-template-columns: 1fr;
+    padding: 0;
+    height: auto;
+    min-height: 100vh;
+  }
+  .left-rail {
+    display: none;
+  }
+  .card-container {
+    border-radius: 0;
+    border: none;
+  }
+}
+
 .card-container {
   background: var(--card);
   border: 1px solid var(--border);
