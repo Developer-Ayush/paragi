@@ -29,11 +29,15 @@ def fetch_realtime_answer(question: str, *, timeout_seconds: float = 4.0) -> tup
 
     subject = _extract_subject(text)
     if not subject:
-        # If no regex match, try searching for the whole text
-        subject = text
+        # No recognised factual-lookup pattern — skip Wikipedia entirely
+        # (e.g. "is water cold?" → let the LLM answer directly)
+        return None
 
     # Step 1: Search for the best page title
-    search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(subject)}&format=json&limit=1"
+    search_url = (
+        f"https://en.wikipedia.org/w/api.php?action=query&list=search"
+        f"&srsearch={urllib.parse.quote(subject)}&format=json&limit=1"
+    )
     try:
         req = urllib.request.Request(search_url, headers={"User-Agent": "paragi-prototype/0.5"})
         with urllib.request.urlopen(req, timeout=timeout_seconds * 0.4) as resp:
@@ -53,14 +57,11 @@ def fetch_realtime_answer(question: str, *, timeout_seconds: float = 4.0) -> tup
         return None
 
     extract = str(payload.get("extract", "")).strip()
-    resolved_title = str(payload.get("title", "")).strip()
     if not extract:
         return None
 
-    answer = extract
-    if resolved_title:
-        answer = f"{resolved_title}: {extract}"
-    return answer, "wikipedia_summary"
+    # Return only the extract — no "Title:" prefix (LLM will format naturally)
+    return extract, "wikipedia_summary"
 
 
 def fetch_troubleshooting_answer(question: str) -> tuple[str, str] | None:

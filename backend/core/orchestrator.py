@@ -96,16 +96,18 @@ class CognitiveOrchestrator:
         if has_graph_knowledge:
             answer = self.generator.generate(reasoning_result, original_query=text)
 
-        # ── STEP 4B: No graph knowledge → Realtime lookup → LLM formats ───────
+        # ── STEP 4B: No graph knowledge → check if Wikipedia is appropriate ───
         else:
-            log.info(f"No graph knowledge. Attempting realtime lookup for: '{text}'")
-            web_result = fetch_realtime_answer(text)
+            # Only search Wikipedia for factual lookups (who/what is X, define X, etc.)
+            # NOT for conversational/simple factual questions ("is water cold?")
+            should_search_web = requires_web or intent_kind in ("concept", "relation", "general_fact")
+            web_result = fetch_realtime_answer(text) if should_search_web else None
 
             if web_result:
                 raw_summary, source = web_result
                 log.info(f"Realtime answer from: {source}")
 
-                # Use LLM to format the web result into a clean response
+                # Use LLM to format the web result into a clean, natural response
                 if self.kernel.llm and self.kernel.llm.backend != "none":
                     refine = self.kernel.llm.format_response(
                         question=text,
@@ -118,12 +120,12 @@ class CognitiveOrchestrator:
                 else:
                     answer = raw_summary
 
-                # Background: learn this into the graph for next time
+                # Background: enqueue concepts for graph expansion
                 all_concepts = list(set(ir.concepts + ir.entities))
                 for concept in all_concepts:
                     self.kernel.expansion.enqueue(concept)
 
-                # Also digest the web result directly into graph edges via LLM
+                # Digest web knowledge directly into graph edges
                 if self.kernel.llm and self.kernel.llm.backend != "none":
                     edges = self.kernel.llm.digest_into_graph(raw_summary)
                     for edge in edges:
@@ -137,7 +139,7 @@ class CognitiveOrchestrator:
                         log.info(f"Digested {len(edges)} edges from web result into graph")
 
             else:
-                # Total fallback: pure LLM answer with no context
+                # Pure LLM answer — no graph, no web (handles "is water cold?" etc.)
                 log.info("No realtime result. Using pure LLM fallback.")
                 if self.kernel.llm and self.kernel.llm.backend != "none":
                     refine = self.kernel.llm.format_response(
