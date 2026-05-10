@@ -71,6 +71,19 @@ code, pre, .mono {
   font-size: 0.85em;
 }
 
+/* Utilities */
+.page {
+  width: 100%;
+  min-height: 100vh;
+  position: relative;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 /* Layout */
 .chat-layout {
   display: grid;
