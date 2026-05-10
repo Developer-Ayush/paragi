@@ -5,4 +5,15 @@ def calculate_resolution_confidence(positive_weight: float, negative_weight: flo
     """Calculate confidence when resolving contradictory edges."""
     total = positive_weight + negative_weight
     if total == 0: return 0.0
-    return abs(positive_weight - negative_weight) / total
+    
+    # Margin of victory
+    margin = abs(positive_weight - negative_weight)
+    
+    # High confidence if margin is large relative to total
+    confidence = margin / total
+    
+    # Scale down if total evidence is very low
+    if total < 1.0:
+        confidence *= total
+        
+    return min(1.0, confidence)
