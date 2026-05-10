@@ -8,7 +8,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List
 
-from .models import EdgeType, normalize_label
+from core.enums import EdgeType
+from models.models import normalize_label
 
 
 @dataclass(slots=True)

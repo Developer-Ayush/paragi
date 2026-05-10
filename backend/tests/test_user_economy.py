@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Any
 
 import os
 import shutil
@@ -8,7 +9,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from api.server import app
 
 TEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".tmp"
 TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)

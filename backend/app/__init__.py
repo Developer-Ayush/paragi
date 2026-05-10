@@ -1,2 +1,0 @@
-"""Paragi backend package."""
-

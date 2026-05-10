@@ -5,7 +5,7 @@ import unittest
 import uuid
 from pathlib import Path
 
-from app.query_rewriter import QueryRewriter
+from encoder.query_rewriter import QueryRewriter
 
 TEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".tmp"
 TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)

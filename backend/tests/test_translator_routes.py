@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Any
 
 import os
 import shutil
@@ -9,7 +10,7 @@ from unittest.mock import patch, MagicMock
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from api.server import app
 
 TEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".tmp"
 TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)
@@ -55,9 +56,10 @@ class TranslatorRoutesTests(unittest.TestCase):
             res = client.post("/internal/decode", json={"path": [], "confidence": 1.0}, headers={"X-Internal-Key": "test_key"})
             self.assertEqual(res.status_code, 422)
 
-    @patch("app.graph_translator.GraphTranslator.encode")
-    def test_valid_encode_request(self, mock_encode) -> None:
-        mock_encode.return_value = {"source":"s", "relation":"IS_A", "target":"t", "confidence":0.8, "fallback_used":False}
+    @patch("encoder.compiler.SemanticCompiler.compile")
+    def test_valid_encode_request(self, mock_compile) -> None:
+        from core.semantic_ir import SemanticIR
+        mock_compile.return_value = MagicMock(spec=SemanticIR, source_concept="s", target_concept="t", confidence=0.8, intent="relation", entities=["s", "t"])
         with TestClient(app) as client:
             res = client.post("/internal/encode", json={"text": "s is a t"}, headers={"X-Internal-Key": "test_key"})
             self.assertEqual(res.status_code, 200)
@@ -65,9 +67,9 @@ class TranslatorRoutesTests(unittest.TestCase):
             self.assertEqual(data["source"], "s")
             self.assertIn("fallback_used", data)
 
-    @patch("app.graph_translator.GraphTranslator.decode")
-    def test_valid_decode_request(self, mock_decode) -> None:
-        mock_decode.return_value = ("S is a T.", False)
+    @patch("decoder.language_generator.LanguageGenerator.generate")
+    def test_valid_decode_request(self, mock_generate) -> None:
+        mock_generate.return_value = "S is a T."
         with TestClient(app) as client:
             res = client.post("/internal/decode", json={"path": [{"source":"s","relation":"IS_A","target":"t"}], "confidence": 1.0}, headers={"X-Internal-Key": "test_key"})
             self.assertEqual(res.status_code, 200)

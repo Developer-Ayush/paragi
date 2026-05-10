@@ -1,25 +1,22 @@
-"""decoder/response_formatter.py — Format the final API response dict."""
-from __future__ import annotations
-from typing import Any, Dict, List
+from typing import Any, Dict
+from reasoning.engine import ReasoningResult
 
+class ResponseFormatter:
+    """
+    Formats ReasoningResult and SemanticIR into final user-facing responses.
+    """
+    def format(self, result: ReasoningResult, ir: Any) -> Dict[str, Any]:
+        return {
+            "answer": result.answer,
+            "confidence": round(result.confidence, 4),
+            "mode": result.mode,
+            "node_path": result.node_path,
+            "metadata": {
+                "intent": ir.intent,
+                "domain": result.domain,
+                "scope": result.scope
+            }
+        }
 
-def format_response(
-    *,
-    answer: str,
-    confidence: float,
-    node_path: List[str],
-    reasoning_mode: str,
-    query_type: str,
-    llm_used: bool = False,
-    extra: Dict[str, Any] | None = None,
-) -> Dict[str, Any]:
-    """Build the JSON response dict returned by POST /query."""
-    return {
-        "answer": answer,
-        "confidence": round(confidence, 4),
-        "node_path": node_path,
-        "reasoning_mode": reasoning_mode,
-        "query_type": query_type,
-        "llm_used": llm_used,
-        **(extra or {}),
-    }
+def format_response(result: ReasoningResult, ir: Any) -> Dict[str, Any]:
+    return ResponseFormatter().format(result, ir)

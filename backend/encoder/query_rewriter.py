@@ -7,8 +7,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Set
 
-from .domain_policy import DOMAIN_KEYWORDS
-from .models import normalize_label
+from core.domain_policy import DOMAIN_KEYWORDS
+from models.models import normalize_label
 
 
 @dataclass(slots=True)
@@ -117,6 +117,7 @@ class QueryRewriter:
 
         vocab = self._build_vocab(extra_terms or [])
         locked_indexes = self._locked_token_indexes(tokens)
+        # print(f"DEBUG_REWRITE: tokens={tokens} locked={locked_indexes} vocab_size={len(vocab)}")
         corrections: list[RewriteCorrection] = []
         out_tokens: list[str] = []
         for idx, token in enumerate(tokens):
@@ -183,10 +184,6 @@ class QueryRewriter:
     # Patterns that indicate the subject starts at a specific token index.
     # Format: list of (prefix_tokens_tuple, subject_start_offset)
     _concept_prefixes = [
-        (("what", "is", "my"), 3),
-        (("what", "is", "the"), 3),
-        (("what", "is"), 2),
-        (("what", "are"), 2),
         (("who", "is"), 2),
         (("who", "was"), 2),
         (("who", "are"), 2),
@@ -250,9 +247,6 @@ class QueryRewriter:
                 return locked
 
         # For general "<subject> is <object>" fact patterns, lock everything.
-        if "is" in tokens:
-            locked.update(range(len(tokens)))
-            return locked
 
         return locked
 
@@ -262,13 +256,13 @@ class QueryRewriter:
             return learned
 
         candidates = list(vocab)
-        close = difflib.get_close_matches(token, candidates, n=1, cutoff=0.82)
+        close = difflib.get_close_matches(token, candidates, n=1, cutoff=0.72)
         if not close:
             return None
 
         target = close[0]
         score = difflib.SequenceMatcher(a=token, b=target).ratio()
-        if score < 0.80:
+        if score < 0.70:
             return None
         return RewriteCorrection(source=token, target=target, score=score)
 

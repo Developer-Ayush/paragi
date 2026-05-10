@@ -18,7 +18,7 @@ from .intent_classifier import classify, IntentClassification
 from .entity_extractor import extract_entities
 from .relation_extractor import extract_relations
 from .concept_normalizer import normalize_concept, normalize_concepts
-from .embedding_encoder import EmbeddingEncoder
+from .semantic_encoder import EmbeddingEncoder
 from .semantic_mapper import map_to_graph_concepts
 from .ambiguity_resolver import resolve_batch
 from .context_builder import build_context
@@ -127,7 +127,8 @@ class SemanticCompiler:
         concept = normalize_concept(intent_cls.concept) if intent_cls.concept else None
 
         # ── 6. Semantic embedding ─────────────────────────────────────────
-        semantic_vector = self._embedding_encoder.encode(parsed.content_tokens, parsed.normalized)
+        enc_res = self._embedding_encoder.encode(parsed.content_tokens, parsed.normalized)
+        semantic_vector = enc_res.semantic_vector if hasattr(enc_res, "semantic_vector") else enc_res
 
         # ── 7. Temporal detection ─────────────────────────────────────────
         token_set = set(parsed.tokens)
@@ -185,7 +186,8 @@ class SemanticCompiler:
             query_type=intent_cls.query_type,
             requires_web=intent_cls.requires_web,
             requires_personal_graph=(intent_cls.kind in {"personal_fact", "personal_query"}),
-            graph_edges=llm_edges,
+            rewrite_applied=(parsed.normalized != parsed.raw),
+            graph_edges=llm_edges + intent_cls.graph_edges,
         )
 
 

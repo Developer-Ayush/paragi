@@ -52,10 +52,12 @@ class ReasoningEngine:
             return self._personal_query(ir)
 
         if ir.intent == "personal_fact":
-            return ReasoningResult(
+            res = ReasoningResult(
                 answer=f"Got it. I'll remember your {ir.personal_attribute}.",
                 confidence=0.99, mode="personal", scope="personal",
             )
+            print(f"DEBUG_REASONING: intent=personal_fact scope={res.scope}")
+            return res
 
         if ir.intent == "greeting":
             return ReasoningResult(
@@ -95,6 +97,8 @@ class ReasoningEngine:
             return self._predictive(ir, src)
         elif mode == ReasoningMode.CONTRADICTION and src and tgt:
             return self._contradiction(ir, src, tgt)
+        elif ir.requires_web:
+            return self._realtime(ir)
         else:
             return self._general(ir, concept)
 
@@ -148,6 +152,12 @@ class ReasoningEngine:
             node_path=node_path, mode="general",
         )
 
+    def _realtime(self, ir: SemanticIR) -> ReasoningResult:
+        return ReasoningResult(
+            answer="Looking that up in real-time...",
+            confidence=0.5, mode="realtime",
+        )
+
     def _personal_query(self, ir: SemanticIR) -> ReasoningResult:
         attr = ir.personal_attribute or ""
         neighbors = self.graph.get_neighbors("self")
@@ -157,6 +167,6 @@ class ReasoningEngine:
                 value = target_label.replace(attr, "").strip()
                 return ReasoningResult(
                     answer=value or target_label,
-                    confidence=0.9, mode="personal",
+                    confidence=0.9, mode="personal", scope="personal",
                 )
-        return ReasoningResult(answer="", confidence=0.0, used_fallback=True)
+        return ReasoningResult(answer="", confidence=0.0, used_fallback=True, scope="personal")

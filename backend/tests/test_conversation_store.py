@@ -6,7 +6,7 @@ import unittest
 import uuid
 from pathlib import Path
 
-from app.conversation_store import ConversationStore
+from storage.conversation_store import ConversationStore
 
 TEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".tmp"
 TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)

@@ -27,15 +27,13 @@ class LanguageGenerator:
         question: str,
         graph_answer: str,
         node_path: List[str],
-        edge_types: List[str],
+        edge_types: List[str] = [],
         confidence: float,
         intent_kind: str = "unknown",
     ) -> str:
         """Generate a human-readable answer."""
 
         # If answer is empty, no LLM call needed
-        if not graph_answer and confidence < 0.1:
-            return ""
 
         # Use LLM at decoder boundary if available
         if self._llm is not None:
@@ -53,12 +51,15 @@ class LanguageGenerator:
                 pass
 
         # Fallback: OwnDecoder template
+        if intent_kind == "personal_query":
+            attr = question.lower().replace("what is my", "").replace("?", "").strip()
+            return f"Your {attr} is {graph_answer}."
+
         if graph_answer:
             return self._own.decode(graph_answer, confidence, node_path)
 
-        # Last fallback: reconstruct from path
         if node_path and edge_types:
             reconstructed = reconstruct_from_path(node_path, edge_types)
             return self._own.decode(reconstructed, confidence, node_path)
 
-        return ""
+        return "I'm not sure how to answer that. You can try asking relation questions (e.g., 'does X cause Y?') or concept questions (e.g., 'what is X?')."

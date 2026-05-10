@@ -6,7 +6,7 @@ import unittest
 import uuid
 from pathlib import Path
 
-from app.own_encoder import OwnEncoder
+from encoder.semantic_encoder import OwnEncoder
 
 TEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".tmp"
 TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)

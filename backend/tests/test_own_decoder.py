@@ -6,9 +6,9 @@ import unittest
 import uuid
 from pathlib import Path
 
-from app.graph import PathMatch
-from app.models import EdgeType
-from app.own_decoder import OwnDecoder
+from graph.graph import PathMatch
+from models.models import EdgeType
+from decoder.own_decoder import OwnDecoder
 
 TEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".tmp"
 TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)

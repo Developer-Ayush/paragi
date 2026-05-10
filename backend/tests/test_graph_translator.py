@@ -8,8 +8,8 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from app.graph_translator import GraphTranslator
-from app.models import EdgeType
+from decoder.graph_translator import GraphTranslator
+from models.models import EdgeType
 
 TEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".tmp"
 TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)

@@ -12,7 +12,7 @@ try:
 except ImportError:
     ollama = None
 import spacy
-from .models import EdgeType
+from core.enums import EdgeType
 
 logger = logging.getLogger(__name__)
 

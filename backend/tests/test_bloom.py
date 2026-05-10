@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 import shutil
 
-from app.bloom import BloomFilter
+from utils.bloom import BloomFilter
 
 TEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".tmp"
 TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)

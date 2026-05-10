@@ -5,13 +5,13 @@ import unittest
 import uuid
 from pathlib import Path
 
-from app.bloom import BloomFilter
-from app.expansion import ExpansionQueueStore, ExpansionResolver
-from app.external_sources import ExternalKnowledgeConnector, RelationCandidate
-from app.graph import GraphEngine
-from app.models import EdgeType
-from app.query_pipeline import QueryPipeline, TemporaryDecoder, TemporaryEncoder
-from app.storage import InMemoryGraphStore
+from utils.bloom import BloomFilter
+from graph.expansion import ExpansionQueueStore, ExpansionResolver
+from utils.external_sources import ExternalKnowledgeConnector, RelationCandidate
+from graph.graph import GraphEngine
+from models.models import EdgeType
+from cognition.consciousness import QueryPipeline, TemporaryDecoder, TemporaryEncoder
+from graph.persistence.storage import InMemoryGraphStore
 
 TEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".tmp"
 TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)

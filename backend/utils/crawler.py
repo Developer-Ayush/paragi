@@ -14,9 +14,9 @@ import trafilatura
 from readability import Document
 from playwright.sync_api import sync_playwright
 
-from .graph import GraphEngine
-from .graph_translator import GraphTranslator
-from .models import EdgeType
+from graph.graph import GraphEngine
+from decoder.graph_translator import GraphTranslator
+from core.enums import EdgeType
 
 logger = logging.getLogger(__name__)
 

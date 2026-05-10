@@ -3,10 +3,10 @@ from pathlib import Path
 import tempfile
 import shutil
 
-from app.graph import GraphEngine, VECTOR_SIZE
-from app.models import EdgeType, EdgeRecord, normalize_label
-from app.bloom import BloomFilter
-from app.storage import InMemoryGraphStore
+from graph.graph import GraphEngine, VECTOR_SIZE
+from models.models import EdgeType, EdgeRecord, normalize_label
+from utils.bloom import BloomFilter
+from graph.persistence.storage import InMemoryGraphStore
 
 class PaperSpecRefinementTests(unittest.TestCase):
     def setUp(self):
@@ -97,7 +97,7 @@ class PaperSpecRefinementTests(unittest.TestCase):
         normalized_label = normalize_label("NODE B")
         # Manufacture a duplicate by using a different ID than what make_node_id produces
         node_b_prime_id = "manual_duplicate_id"
-        from app.models import NodeRecord, now_ts
+        from models.models import NodeRecord, now_ts
         ts = now_ts()
         node_b_prime = NodeRecord(
             id=node_b_prime_id,

@@ -8,11 +8,11 @@ import time
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from app.crawler import ParagiCrawler
-from app.graph import GraphEngine
-from app.graph_translator import GraphTranslator
-from app.bloom import BloomFilter
-from app.storage import InMemoryGraphStore
+from utils.crawler import ParagiCrawler
+from graph.graph import GraphEngine
+from decoder.graph_translator import GraphTranslator
+from utils.bloom import BloomFilter
+from graph.persistence.storage import InMemoryGraphStore
 
 TEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".tmp"
 TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)
@@ -104,8 +104,8 @@ class CrawlerTests(unittest.TestCase):
         self.assertIsNotNone(edge)
         self.assertEqual(edge.type.value, "CAUSES")
 
-    @patch("app.crawler.ParagiCrawler._fetch")
-    @patch("app.crawler.ParagiCrawler._extract_content")
+    @patch("utils.crawler.ParagiCrawler._fetch")
+    @patch("utils.crawler.ParagiCrawler._extract_content")
     def test_crawl_loop(self, mock_extract, mock_fetch) -> None:
         mock_fetch.return_value = "<html><body>Some content</body></html>"
         # Content must be long enough to pass chunk filter in _process_content
@@ -118,8 +118,8 @@ class CrawlerTests(unittest.TestCase):
         self.assertEqual(self.crawler.pages_crawled, 1)
         self.assertTrue(self.graph.node_exists("X"))
 
-    @patch("app.crawler.ParagiCrawler._search")
-    @patch("app.crawler.ParagiCrawler.crawl")
+    @patch("utils.crawler.ParagiCrawler._search")
+    @patch("utils.crawler.ParagiCrawler.crawl")
     def test_crawl_query(self, mock_crawl, mock_search) -> None:
         mock_search.return_value = ["url1", "url2", "url3", "url4", "url5", "url6"]
         self.crawler.crawl_query("some query")

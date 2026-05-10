@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Any
 
 import os
 import shutil
@@ -9,7 +10,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from api.server import app
 
 TEST_TMP_ROOT = Path(__file__).resolve().parents[1] / ".tmp"
 TEST_TMP_ROOT.mkdir(parents=True, exist_ok=True)
@@ -55,7 +56,7 @@ class QueryApiTests(unittest.TestCase):
             second = client.post("/query", json={"text": "does steam burn?"})
             self.assertEqual(second.status_code, 200)
             second_data = second.json()
-            self.assertFalse(second_data["used_fallback"])
+            self.assertFalse(second_data["used_fallback"], msg=f"Full data: {second_data}")
 
             history = client.get("/query/history", params={"limit": 5})
             self.assertEqual(history.status_code, 200)
@@ -268,7 +269,7 @@ class QueryApiTests(unittest.TestCase):
             self.assertEqual(data["credits_awarded"], 0)
 
     def test_realtime_mode_uses_web_lookup_even_when_llm_disabled(self) -> None:
-        with patch("app.main.fetch_realtime_answer", return_value=("Narendra Modi is Prime Minister of India.", "wikipedia_summary")):
+        with patch("api.server.fetch_realtime_answer", return_value=("Narendra Modi is Prime Minister of India.", "wikipedia_summary")):
             with TestClient(app) as client:
                 q = client.post("/query", json={"text": "who is narendra modi?", "user_id": "alice", "scope": "auto"})
                 self.assertEqual(q.status_code, 200)

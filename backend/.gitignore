@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 data/
 .tmp/
+brain/
+*.log
+.env
+.pytest_cache/

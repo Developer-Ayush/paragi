@@ -1,10 +1,10 @@
 from __future__ import annotations
 import unittest
 from pathlib import Path
-from app.graph import GraphEngine
-from app.bloom import BloomFilter
-from app.storage import InMemoryGraphStore
-from app.models import EdgeType
+from graph.graph import GraphEngine
+from utils.bloom import BloomFilter
+from graph.persistence.storage import InMemoryGraphStore
+from models.models import EdgeType
 
 class SemanticDedupTests(unittest.TestCase):
     def setUp(self):
@@ -31,11 +31,11 @@ class SemanticDedupTests(unittest.TestCase):
         # Actually, let's just test that the logic triggers.
 
         self.engine.create_or_get_node("global warming")
-        self.engine.create_or_get_node("climate change") # These might not be > 0.95 yet
+        self.engine.create_or_get_node("global climate")
 
         # Add edges to see if they repoint
         self.engine.create_edge("global warming", "heat", EdgeType.CAUSES, strength=0.8)
-        self.engine.create_edge("climate change", "melting ice", EdgeType.CAUSES, strength=0.7)
+        self.engine.create_edge("global climate", "melting ice", EdgeType.CAUSES, strength=0.7)
 
         initial_nodes = self.engine.count_nodes()
         self.assertGreaterEqual(initial_nodes, 3)

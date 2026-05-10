@@ -1,5 +1,5 @@
 import unittest
-from app.external_sources import PubMedConnector, ArxivConnector, CourtListenerConnector
+from utils.external_sources import PubMedConnector, ArxivConnector, CourtListenerConnector
 
 class TestExternalConnectors(unittest.TestCase):
     def test_pubmed_connector_exists(self):

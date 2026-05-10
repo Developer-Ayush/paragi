@@ -81,6 +81,7 @@ class SemanticIR:
     requires_web: bool = False
     requires_graph: bool = True
     requires_personal_graph: bool = False
+    rewrite_applied: bool = False
     graph_edges: List[Dict[str, Any]] = field(default_factory=list)  # LLM-extracted edges
 
     def to_dict(self) -> Dict[str, Any]:

@@ -60,6 +60,8 @@ class Settings:
     llm_keep_alive: str
     llm_policy: str                # always | smart | unknown_only
     llm_api_key: str
+    api_key: str
+    api_key_required: bool
 
     # ── Auth ──────────────────────────────────────────────────────────────
     google_client_id: str
@@ -114,6 +116,8 @@ class Settings:
             or os.getenv("PARAGI_LLM_API_KEY", "").strip()
         )
         google_client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+        api_key = os.getenv("PARAGI_API_KEY", "").strip()
+        api_key_required = bool(api_key)
 
         learning_confidence_threshold = float(os.getenv("PARAGI_LEARNING_THRESHOLD", "0.5"))
         episodic_decay_hours = float(os.getenv("PARAGI_EPISODIC_DECAY_HOURS", "24.0"))
@@ -154,6 +158,8 @@ class Settings:
             llm_policy=llm_policy,
             llm_api_key=llm_api_key,
             google_client_id=google_client_id,
+            api_key=api_key,
+            api_key_required=api_key_required,
             learning_confidence_threshold=learning_confidence_threshold,
             episodic_decay_hours=episodic_decay_hours,
             realtime_ttl_seconds=realtime_ttl_seconds,

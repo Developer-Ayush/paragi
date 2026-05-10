@@ -48,7 +48,7 @@ _PERSONAL_PATTERNS = [
     (re.compile(r"^\s*my\s+name\s+is\s+([a-z0-9_ ]+)\s*$"), "name"),
     (re.compile(r"^\s*my\s+nationality\s+is\s+([a-z0-9_ ]+)\s*$"), "nationality"),
     (re.compile(r"^\s*i\s+am\s+from\s+([a-z0-9_ ]+)\s*$"), "nationality"),
-    (re.compile(r"^\s*i\s+am\s+([a-z0-9_ ]+)\s*$"), "identity"),
+    (re.compile(r"^\s*i\s+am\s+([a-z0-9_ ]+)\s*$"), "name"),
     (re.compile(r"^\s*i\s+live\s+in\s+([a-z0-9_ ]+)\s*$"), "location"),
     (re.compile(r"^\s*i\s+like\s+([a-z0-9_ ]+)\s*$"), "preference"),
 ]
@@ -66,6 +66,7 @@ _GREETING_WORDS = {"hi", "hello", "hey", "greetings", "howdy", "sup", "yo", "hiy
 _REALTIME_KEYWORDS = {
     "news", "today", "current", "latest", "now", "weather", "stock",
     "price", "live", "breaking", "recent", "2024", "2025", "2026",
+    "who is", "who was",
 }
 
 
@@ -115,16 +116,21 @@ def classify(parsed: ParsedText) -> IntentClassification:
             src, tgt = _norm(m.group(1)), _norm(m.group(2))
             mode = _infer_mode(text)
             qt = "CAUSAL_REASONING" if mode == "causal" else "STATIC_KNOWLEDGE"
-            return IntentClassification(kind="relation", source=src, target=tgt, reasoning_mode=mode, query_type=qt)
+            rel = "CAUSES" if mode == "causal" else "CORRELATES"
+            return IntentClassification(
+                kind="relation", source=src, target=tgt, reasoning_mode=mode, 
+                query_type=qt, learnability=0.8,
+                graph_edges=[{"source": src, "target": tgt, "relation": rel}]
+            )
 
     for pattern in _CONCEPT_PATTERNS:
         m = pattern.match(text)
         if m:
             concept = _norm(m.group(1))
             if concept:
-                rw = bool(set(parsed.tokens) & _REALTIME_KEYWORDS)
+                rw = any(k in text for k in _REALTIME_KEYWORDS) or bool(set(parsed.tokens) & _REALTIME_KEYWORDS)
                 qt = "REALTIME_KNOWLEDGE" if rw else "STATIC_KNOWLEDGE"
-                return IntentClassification(kind="concept", concept=concept, query_type=qt, requires_web=rw)
+                return IntentClassification(kind="concept", concept=concept, query_type=qt, requires_web=rw, learnability=0.8, entities=[concept])
 
     m = _GENERAL_FACT_PATTERN.match(text)
     if m:

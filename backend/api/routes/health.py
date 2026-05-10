@@ -5,6 +5,17 @@ from typing import Any, Dict
 
 router = APIRouter()
 
+@router.get("/")
+async def root():
+    return {"ok": True, "ui": "http://localhost:3000", "message": "Paragi API is alive"}
+
+@router.get("/domains")
+async def domains():
+    return {
+        "count": 1,
+        "domains": [{"id": "general", "name": "General Knowledge", "credit_multiplier": 1.0}]
+    }
+
 
 @router.get("/health")
 async def health() -> Dict[str, Any]:

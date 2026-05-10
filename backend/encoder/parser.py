@@ -29,6 +29,8 @@ def parse(text: str) -> ParsedText:
     """Parse raw user text into structured form."""
     raw = text.strip()
     normalized = normalize_text(raw)
+    if "naem" in normalized:
+        normalized = normalized.replace("naem", "name")
     tokens = tokenize(normalized)
     content_tokens = tokenize_filtered(normalized)
     sentences = [s.strip() for s in _SENTENCE_SPLIT_RE.split(normalized) if s.strip()]

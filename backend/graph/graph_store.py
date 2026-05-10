@@ -30,6 +30,16 @@ class GraphStore:
         with self._lock:
             return self._nodes.get(node_id)
 
+    def delete_node(self, node_id: str) -> None:
+        with self._lock:
+            self._nodes.pop(node_id, None)
+            self._adj_out.pop(node_id, None)
+            self._adj_in.pop(node_id, None)
+
+    def list_node_ids(self) -> List[str]:
+        with self._lock:
+            return list(self._nodes.keys())
+
     def add_edge(self, edge: Edge) -> None:
         with self._lock:
             self._edges[edge.id] = edge
@@ -46,6 +56,15 @@ class GraphStore:
     def get_edge(self, edge_id: str) -> Optional[Edge]:
         with self._lock:
             return self._edges.get(edge_id)
+
+    def delete_edge(self, edge_id: str) -> None:
+        with self._lock:
+            edge = self._edges.pop(edge_id, None)
+            if edge:
+                if edge.id in self._adj_out.get(edge.source, []):
+                    self._adj_out[edge.source].remove(edge.id)
+                if edge.id in self._adj_in.get(edge.target, []):
+                    self._adj_in[edge.target].remove(edge.id)
 
     def get_outgoing(self, node_id: str) -> List[Edge]:
         with self._lock:

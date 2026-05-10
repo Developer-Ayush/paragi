@@ -8,9 +8,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import List
 
-from .external_sources import ExternalKnowledgeConnector, RelationCandidate
+from utils.external_sources import ExternalKnowledgeConnector, RelationCandidate
 from .graph import GraphEngine
-from .models import normalize_label
+from models.models import normalize_label
 
 
 @dataclass(slots=True)
@@ -153,6 +153,13 @@ class ExpansionResolver:
         self.connectors = connectors
         self.max_attempts = max_attempts
 
+    def resolve(self, node_id: str) -> int:
+        with self.queue._lock:
+            node = self.queue._nodes.get(node_id)
+        if node:
+            return self._resolve_one(node)
+        return 0
+
     def resolve_pending(self, max_items: int = 3) -> int:
         resolved_count = 0
         pending = self.queue.get_pending(limit=max_items)
@@ -187,7 +194,11 @@ class ExpansionResolver:
 
     def _resolve_one(self, node: ExpansionNode) -> int:
         for connector in self.connectors:
-            candidates = connector.fetch_relation(node.source, node.target)
+            if node.target:
+                candidates = connector.fetch_relation(node.source, node.target)
+            else:
+                candidates = connector.fetch_concept(node.source)
+            
             if candidates:
                 created = self._ingest_candidates(candidates)
                 if created > 0:

@@ -24,7 +24,7 @@ log = get_logger(__name__)
 
 # Import BloomFilter from app (reuse existing)
 try:
-    from app.bloom import BloomFilter  # type: ignore
+    from utils.bloom import BloomFilter  # type: ignore
 except ImportError:
     BloomFilter = None  # type: ignore
 
@@ -577,12 +577,8 @@ class GraphEngine:
 
     def bootstrap_default(self) -> int:
         seeds: list[SeedRelation] = [
-            ("fire", "heat", EdgeType.IS_A, 0.92),
-            ("heat", "burn", EdgeType.CAUSES, 0.90),
-            ("steam", "heat", EdgeType.IS_A, 0.85),
-            ("water", "cold", EdgeType.CORRELATES, 0.72),
-            ("burn", "pain", EdgeType.CAUSES, 0.95),
-            ("fire", "smoke", EdgeType.CORRELATES, 0.88),
+            ("gravity", "earth", EdgeType.CORRELATES, 0.95),
+            ("earth", "round", EdgeType.IS_A, 0.90),
         ]
         return self.bootstrap(seeds)
 
@@ -597,15 +593,104 @@ class GraphEngine:
                 count += 1
         return count
 
+    def deduplicate_graph(self, semantic_threshold: float = 0.95) -> Dict[str, int]:
+        """Merge semantically similar nodes and identical labels."""
+        nodes_merged = 0
+        repointed_count = 0
+        
+        # 1. Merge identical labels
+        ids = list(self.store.iter_node_ids())
+        label_to_ids: Dict[str, List[str]] = {}
+        for nid in ids:
+            label = normalize_label(self.get_node_label(nid))
+            label_to_ids.setdefault(label, []).append(nid)
+            
+        for label, group in label_to_ids.items():
+            if len(group) > 1:
+                # Merge into the oldest one (or just the first)
+                target_id = group[0]
+                for nid in group[1:]:
+                    print(f"DEBUG_DEDUP: Merging identical label '{label}' ({nid} -> {target_id})")
+                    repointed_count += self._merge_nodes(nid, target_id)
+                    nodes_merged += 1
+                    
+        # 2. Semantic merge if threshold is low enough
+        if semantic_threshold < 0.99 and len(ids) > 1:
+            # Simple O(N^2) merge for small graphs (tests)
+            for i in range(len(ids)):
+                for j in range(i + 1, len(ids)):
+                    id1, id2 = ids[i], ids[j]
+                    if id1 not in self.store.iter_node_ids() or id2 not in self.store.iter_node_ids():
+                        continue
+                    
+                    from encoder.semantic_encoder import EmbeddingEncoder
+                    encoder = EmbeddingEncoder()
+                    
+                    label1 = self.get_node_label(id1)
+                    label2 = self.get_node_label(id2)
+                    v1 = encoder.encode(label1.split(), label1).semantic_vector
+                    v2 = encoder.encode(label2.split(), label2).semantic_vector
+                    if not v1 or not v2: continue
+                    
+                    # Cosine similarity
+                    dot = sum(a*b for a,b in zip(v1, v2))
+                    mag1 = math.sqrt(sum(a*a for a in v1))
+                    mag2 = math.sqrt(sum(b*b for b in v2))
+                    sim = dot / (mag1 * mag2) if mag1 * mag2 > 0 else 0
+                    
+                    if sim >= semantic_threshold:
+                        print(f"DEBUG_DEDUP: Semantic merge (sim={sim:.2f}) '{self.get_node_label(id2)}' -> '{self.get_node_label(id1)}'")
+                        repointed_count += self._merge_nodes(id2, id1)
+                        nodes_merged += 1
+            
+        return {"nodes_merged": nodes_merged, "edges_repointed": repointed_count}
+        
+    def _merge_nodes(self, source_id: str, target_id: str) -> int:
+        repointed = 0
+        # Outgoing
+        for edge in self.store.list_outgoing(source_id):
+            new_edge = EdgeRecord(
+                id=make_edge_id(target_id, edge.target),
+                source=target_id, target=edge.target,
+                type=edge.type, vector=edge.vector,
+                strength=edge.strength, created=edge.created,
+                emotional_weight=edge.emotional_weight, recall_count=edge.recall_count,
+                stability=edge.stability, last_activated=edge.last_activated,
+                confidence=edge.confidence
+            )
+            self.store.upsert_edge(new_edge)
+            self.store.delete_edge(edge.id)
+            repointed += 1
+            
+        # Incoming
+        for edge in self.store.list_incoming(source_id):
+            new_edge = EdgeRecord(
+                id=make_edge_id(edge.source, target_id),
+                source=edge.source, target=target_id,
+                type=edge.type, vector=edge.vector,
+                strength=edge.strength, created=edge.created,
+                emotional_weight=edge.emotional_weight, recall_count=edge.recall_count,
+                stability=edge.stability, last_activated=edge.last_activated,
+                confidence=edge.confidence
+            )
+            self.store.upsert_edge(new_edge)
+            self.store.delete_edge(edge.id)
+            repointed += 1
+            
+        self.store.delete_node(source_id)
+        return repointed
+
     def close(self) -> None:
         self.store.close()
 
 
 class _FakeBloom:
     """Fallback when app.bloom is unavailable."""
+    def __init__(self):
+        self._set = set()
     def __contains__(self, item: str) -> bool:
-        return False
+        return item in self._set
     def add(self, item: str) -> None:
-        pass
+        self._set.add(item)
     def save(self, path: object) -> None:
         pass

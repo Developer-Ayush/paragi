@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.llm_refiner import LLMRefiner
+from utils.llm_refiner import LLMRefiner
 
 
 class LLMRefinerTests(unittest.TestCase):
