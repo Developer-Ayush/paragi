@@ -59,6 +59,7 @@ export function session(token) {
 }
 
 export function query(payload) {
+  // payload should include text, user_id, scope, domain, and optionally chat_id
   return request("/query", { method: "POST", body: JSON.stringify(payload) });
 }
 

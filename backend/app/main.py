@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -81,6 +81,7 @@ class QueryRequest(BaseModel):
     domain: str = Field(default="auto", min_length=1, max_length=32)
     max_hops: int = Field(default=7, ge=1, le=12)
     max_paths: int = Field(default=64, ge=1, le=512)
+    chat_id: str | None = Field(default=None, max_length=64)
     debug: bool = Field(default=False)
 
 
@@ -122,6 +123,38 @@ class DecoderTrainRequest(BaseModel):
     max_records: int = Field(default=50000, ge=100, le=2000000)
     min_confidence: float = Field(default=0.3, ge=0.0, le=1.0)
     min_samples: int = Field(default=20, ge=1, le=1000)
+
+class ConnectionManager:
+    def __init__(self):
+        # Maps user_id -> list of active WebSockets
+        self.active_connections: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, user_id: str):
+        await websocket.accept()
+        if user_id not in self.active_connections:
+            self.active_connections[user_id] = []
+        self.active_connections[user_id].append(websocket)
+
+    def disconnect(self, websocket: WebSocket, user_id: str):
+        if user_id in self.active_connections:
+            try:
+                self.active_connections[user_id].remove(websocket)
+                if not self.active_connections[user_id]:
+                    del self.active_connections[user_id]
+            except ValueError:
+                pass
+
+    async def broadcast_to_user(self, user_id: str, message: dict):
+        if user_id in self.active_connections:
+            for connection in self.active_connections[user_id]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    # Connection might be dead
+                    pass
+
+manager = ConnectionManager()
+
 
 
 def _initialize_state(app: FastAPI, *, start_workers: bool) -> None:
@@ -1013,15 +1046,30 @@ def query(payload: QueryRequest, request: Request) -> dict:
         "stored_at": record.timestamp,
     }
 
-    if payload.debug:
-        response_data["debug_cognition"] = {
-            "query_type": result.query_type,
-            "memory_actions": result.memory_actions,
-            "reasoning_paths": result.reasoning_paths,
-            "steps": result.steps,
-        }
+    # Broadcast result via WebSocket for session sync
+    await manager.broadcast_to_user(user_id, {
+        "type": "chat_update",
+        "chat_id": payload.chat_id,
+        "data": response_data
+    })
 
     return response_data
+
+
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    safe_user = sanitize_user_id(user_id)
+    await manager.connect(websocket, safe_user)
+    try:
+        while True:
+            # Keep connection alive and listen for any client-side messages
+            data = await websocket.receive_text()
+            # Handle heartbeat or client-sent messages if needed
+            await websocket.send_json({"type": "pong", "data": data})
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, safe_user)
+    except Exception:
+        manager.disconnect(websocket, safe_user)
 
 
 @app.get("/encoder/training/recent")

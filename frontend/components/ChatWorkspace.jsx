@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import GraphPanel from "@/components/GraphPanel";
 import { getAuthSession, clearAuthSession } from "@/lib/auth";
 import { createSession, loadSessions, normalizeTitle, saveSessions, upsertSession, deleteSession } from "@/lib/chat-storage";
-import { health, llmStatus, logout, query, session, queryHistoryEvolution } from "@/lib/api";
+import { health, llmStatus, logout, query, session, queryHistoryEvolution, getApiBase } from "@/lib/api";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 function makeMessage(role, text, meta = null) {
   return {
@@ -39,6 +40,56 @@ export default function ChatWorkspace() {
     () => sessions.find((item) => item.id === activeId) || null,
     [sessions, activeId],
   );
+
+  const { lastMessage, isConnected } = useWebSocket(auth?.userId, getApiBase());
+
+  // Handle cross-session synchronization via WebSocket
+  useEffect(() => {
+    if (!lastMessage || lastMessage.type !== "chat_update") return;
+    
+    const { chat_id, data } = lastMessage;
+    
+    // If the message is for a different session, update that session in the background
+    // If it's for the current session, append it (unless we are already handling it)
+    setSessions(prev => {
+      const sessionToUpdate = prev.find(s => s.id === chat_id);
+      if (!sessionToUpdate) {
+        // If session not found locally, we might need to fetch it or just ignore if it's new
+        return prev;
+      }
+
+      // Check if this message (by history_record_id) already exists to avoid duplicates
+      const exists = (sessionToUpdate.messages || []).some(m => m.meta?.history_record_id === data.history_record_id);
+      if (exists) return prev;
+
+      // Also check if we are currently "sending" the same query to avoid double-appending our own response
+      // This is a bit heuristic but works for basic sync
+      const isOurOwnResponse = sending && data.input_text === draft;
+      if (isOurOwnResponse) return prev;
+
+      const botMsg = makeMessage("assistant", data.answer, {
+        confidence: data.confidence,
+        path: data.node_path,
+        scope: data.scope,
+        benefits_main_graph: data.benefits_main_graph,
+        llm_mode: data.llm_mode,
+        query_mode: data.query_mode,
+        history_record_id: data.history_record_id,
+        synced: true
+      });
+
+      // We might also need to append the user message if it's missing (syncing from another device)
+      const hasUserMsg = (sessionToUpdate.messages || []).some(m => m.role === "user" && m.text === data.input_text);
+      let newMessages = [...(sessionToUpdate.messages || [])];
+      
+      if (!hasUserMsg) {
+        newMessages.push(makeMessage("user", data.input_text, { synced: true }));
+      }
+      newMessages.push(botMsg);
+
+      return prev.map(s => s.id === chat_id ? { ...s, messages: newMessages, updatedAt: Date.now() } : s);
+    });
+  }, [lastMessage, sending, draft]);
 
   const messages = activeSession?.messages || [];
 
@@ -185,6 +236,7 @@ export default function ChatWorkspace() {
         user_id: auth.userId,
         scope: "auto",
         domain: "auto",
+        chat_id: activeId,
       });
 
       const botMessageId = appendMessage("assistant", "", {

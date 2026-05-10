@@ -472,7 +472,7 @@ class GraphEngine:
         if limit <= 0:
             return []
 
-        source = self._get_node_by_label(source_label)
+        source = self.get_node_by_label(source_label)
         if source is None:
             return []
 
@@ -526,8 +526,8 @@ class GraphEngine:
         max_paths: int = 64,
         goal_relevance: float = 1.0,
     ) -> List[PathMatch]:
-        source = self._get_node_by_label(source_label)
-        target = self._get_node_by_label(target_label)
+        source = self.get_node_by_label(source_label)
+        target = self.get_node_by_label(target_label)
         if source is None or target is None:
             return []
 
