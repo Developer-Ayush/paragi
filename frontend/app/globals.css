@@ -25,7 +25,7 @@ body.dark {
   --danger: #ef4444;
   --shadow: 0 20px 60px rgba(0, 0, 0, 1);
   --graph-node: #ff6b3d;
-  --graph-line: #666666;
+  --graph-line: #888888;
 }
 
 * {
@@ -474,153 +474,16 @@ body.dark .brand-box {
   border-bottom: 1px solid var(--line);
 }
 
+
 .chat-session-list {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  align-content: start;
+  flex: 1;
   overflow-y: auto;
-  border-top: 1px solid var(--line);
-}
-
-.session-item {
-  display: grid;
-  gap: 3px;
-  text-align: left;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--card);
   padding: 8px;
-}
-
-body.dark .session-item {
-  border-color: #333;
-}
-
-.session-item small {
-  color: var(--muted);
-  font-family: var(--font-mono), monospace;
-  font-size: 0.68rem;
-}
-
-.session-item.active {
-  border-color: var(--accent);
-  background: #fff2dd;
-}
-
-.history-box {
-  border-top: 1px solid var(--line);
-  padding: 12px;
-  max-height: 220px;
-  overflow: auto;
-}
-
-.history-box h4 {
-  margin: 0 0 8px;
-}
-
-.history-row {
-  border: 1px solid #e7d8bf;
-  border-radius: 9px;
-  background: #fff;
-  padding: 7px;
-  margin-bottom: 7px;
-}
-
-.history-row small {
-  color: var(--muted);
-  font-family: var(--font-mono), monospace;
-  font-size: 0.68rem;
-}
-
-.chat-main {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  height: calc(100vh - 40px);
-  min-height: 0;
-}
-
-.chat-header {
-  border-bottom: 1px solid var(--line);
-  padding: 14px 16px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  background: linear-gradient(90deg, #fff5e1, #fffaf2);
+  flex-direction: column;
+  gap: 4px;
 }
 
-body.dark .chat-header {
-  background: #0d0d0d;
-}
-
-.chat-header span {
-  color: var(--muted);
-  font-size: 0.8rem;
-  font-family: var(--font-mono), monospace;
-}
-
-.message-list {
-  padding: 16px;
-  display: grid;
-  gap: 12px;
-  overflow-y: auto;
-  min-height: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 251, 243, 0.9), rgba(255, 248, 236, 0.55)),
-    repeating-linear-gradient(180deg, transparent 0 42px, rgba(217, 194, 162, 0.2) 42px 43px);
-}
-
-body.dark .message-list {
-  background: 
-    linear-gradient(180deg, #0a0a0a, #000000),
-    repeating-linear-gradient(180deg, transparent 0 42px, rgba(255, 255, 255, 0.02) 42px 43px);
-}
-
-.bubble {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--card);
-  padding: 10px 12px;
-  max-width: 94%;
-}
-
-body.dark .bubble {
-  background: #181818;
-  border-color: #222;
-}
-
-.bubble.user {
-  margin-left: auto;
-  border-left: 4px solid var(--accent);
-}
-
-.bubble.assistant {
-  margin-right: auto;
-  border-left: 4px solid var(--ok);
-}
-
-.bubble .role {
-  font-size: 0.7rem;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 6px;
-  font-family: var(--font-mono), monospace;
-}
-
-.bubble .body {
-  white-space: pre-wrap;
-  line-height: 1.5;
-}
-
-.trace {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-family: var(--font-mono), monospace;
-  display: grid;
-  gap: 2px;
-}
 
 .trace-details {
   margin-top: 8px;
