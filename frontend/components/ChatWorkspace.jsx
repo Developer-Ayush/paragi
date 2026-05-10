@@ -149,6 +149,31 @@ export default function ChatWorkspace() {
     } catch {}
   }
 
+  function appendMessage(role, text, meta = null) {
+    const msg = makeMessage(role, text, meta);
+    setSessions((prev) => {
+      return prev.map((s) => {
+        if (s.id === activeId) {
+          return { ...s, messages: [...(s.messages || []), msg], updatedAt: Date.now() };
+        }
+        return s;
+      });
+    });
+    return msg.id;
+  }
+
+  function patchMessage(id, data) {
+    setSessions((prev) => {
+      return prev.map((s) => {
+        if (s.id === activeId) {
+          const newMessages = (s.messages || []).map((m) => (m.id === id ? { ...m, ...data } : m));
+          return { ...s, messages: newMessages };
+        }
+        return s;
+      });
+    });
+  }
+
   async function sendQuery() {
     const text = draft.trim();
     if (!text || sending || !auth?.userId) return;

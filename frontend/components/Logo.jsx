@@ -17,7 +17,7 @@ export default function Logo({ theme = "light", className = "" }) {
   return (
     <svg
       width="100%"
-      height="auto"
+      style={{ height: 'auto' }}
       viewBox="0 0 680 165"
       role="img"
       xmlns="http://www.w3.org/2000/svg"
