@@ -29,13 +29,25 @@ def fetch_realtime_answer(question: str, *, timeout_seconds: float = 4.0) -> tup
 
     subject = _extract_subject(text)
     if not subject:
-        return None
+        # If no regex match, try searching for the whole text
+        subject = text
 
-    title = subject.strip().replace(" ", "_")
+    # Step 1: Search for the best page title
+    search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(subject)}&format=json&limit=1"
+    try:
+        req = urllib.request.Request(search_url, headers={"User-Agent": "paragi-prototype/0.5"})
+        with urllib.request.urlopen(req, timeout=timeout_seconds * 0.4) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            results = data.get("query", {}).get("search", [])
+            title = results[0].get("title") if results else subject.replace(" ", "_")
+    except Exception:
+        title = subject.replace(" ", "_")
+
+    # Step 2: Fetch summary
     url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(title)}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "paragi-prototype/0.5"})
-        with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+        with urllib.request.urlopen(req, timeout=timeout_seconds * 0.6) as resp:
             payload = json.loads(resp.read().decode("utf-8", errors="ignore"))
     except Exception:
         return None

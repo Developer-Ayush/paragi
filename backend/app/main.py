@@ -848,7 +848,7 @@ def reasoning_contradiction(payload: ContradictionRequest, request: Request) -> 
 @app.post("/query")
 async def query(payload: QueryRequest, request: Request) -> dict:
     user_id = sanitize_user_id(payload.user_id)
-    _ = get_graph(request)
+    graph = get_graph(request)
     rewriter = get_query_rewriter(request)
     rewrite = rewriter.rewrite(payload.text)
     rewritten_text = rewrite.rewritten_text
@@ -933,6 +933,27 @@ async def query(payload: QueryRequest, request: Request) -> dict:
 
     if not final_answer:
         final_answer = result.answer or "I do not have enough reliable information yet."
+
+    # Phase 9: Digest into graph if fallback was used (Self-Learning)
+    if benefits_main_graph and (llm_mode in ("llm_format", "web_fallback", "wiki_fallback")) and final_answer:
+        # If confidence was very low, we treat this as new knowledge
+        if result.confidence < 0.2:
+            extracted_edges = llm.digest_into_graph(final_answer)
+            if extracted_edges:
+                # Use the pipeline's internal methods to apply these edges if they match the scope
+                # For simplicity, we just create them directly on the graph if it's main scope
+                if selected_scope == "main":
+                    for edge in extracted_edges:
+                        graph.create_edge(
+                            edge["source"],
+                            edge["target"],
+                            EdgeType(edge["relation"]),
+                            strength=0.65,
+                            vector=pipeline.encoder.encode(f"{edge['source']} {edge['target']}").semantic_vector
+                        )
+                    result.new_nodes_created += len(set(e["source"] for e in extracted_edges) | set(e["target"] for e in extracted_edges))
+                    result.created_edges += len(extracted_edges)
+                    result.steps.append(f"self_learned:{len(extracted_edges)}_edges")
 
     contribution = {
         "awarded_credits": 0,

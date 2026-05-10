@@ -323,11 +323,17 @@ class WikipediaConnector(ExternalKnowledgeConnector):
     def fetch_relation(self, source: str, target: str, timeout_seconds: float = 1.5) -> List[RelationCandidate]:
         source = normalize_label(source)
         target = normalize_label(target)
-        page = urllib.parse.quote(source.replace(" ", "_"))
+        
+        # Step 1: Search for the best page title
+        best_title = self._search_title(source, timeout_seconds=timeout_seconds * 0.4)
+        if not best_title:
+            best_title = source.replace(" ", "_")
+        
+        page = urllib.parse.quote(best_title)
         url = self.endpoint + page
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "paragi-prototype/0.3"})
-            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+            with urllib.request.urlopen(req, timeout=timeout_seconds * 0.6) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))
         except Exception:
             return []
@@ -348,13 +354,32 @@ class WikipediaConnector(ExternalKnowledgeConnector):
             ]
         return []
 
+    def _search_title(self, query: str, timeout_seconds: float) -> str | None:
+        search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&format=json&limit=1"
+        try:
+            req = urllib.request.Request(search_url, headers={"User-Agent": "paragi-prototype/0.3"})
+            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                results = data.get("query", {}).get("search", [])
+                if results:
+                    return results[0].get("title")
+        except Exception:
+            pass
+        return None
+
     def fetch_concept(self, concept: str, timeout_seconds: float = 1.5) -> List[RelationCandidate]:
         source = normalize_label(concept)
-        page = urllib.parse.quote(source.replace(" ", "_"))
+        
+        # Step 1: Search for best title
+        best_title = self._search_title(source, timeout_seconds=timeout_seconds * 0.4)
+        if not best_title:
+            best_title = source.replace(" ", "_")
+
+        page = urllib.parse.quote(best_title)
         url = self.endpoint + page
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "paragi-prototype/0.3"})
-            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+            with urllib.request.urlopen(req, timeout=timeout_seconds * 0.6) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))
         except Exception:
             return []

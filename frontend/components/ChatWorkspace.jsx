@@ -32,6 +32,7 @@ export default function ChatWorkspace() {
   const [auth, setAuth] = useState(null);
   const [checking, setChecking] = useState(true);
   const { theme, setTheme } = useTheme();
+  const pendingQueryRef = useMemo(() => ({ current: "" }), []);
   const [sessions, setSessions] = useState([]);
   const [activeId, setActiveId] = useState("");
   const [draft, setDraft] = useState("");
@@ -67,8 +68,7 @@ export default function ChatWorkspace() {
       if (exists) return prev;
 
       // Also check if we are currently "sending" the same query to avoid double-appending our own response
-      // This is a bit heuristic but works for basic sync
-      const isOurOwnResponse = sending && data.input_text === draft;
+      const isOurOwnResponse = sending && data.input_text === pendingQueryRef.current;
       if (isOurOwnResponse) return prev;
 
       const botMsg = makeMessage("assistant", data.answer, {
@@ -230,6 +230,7 @@ export default function ChatWorkspace() {
     if (!text || sending || !auth?.userId) return;
 
     setDraft("");
+    pendingQueryRef.current = text;
     setSending(true);
     setStatus("Thinking...");
     appendMessage("user", text);
@@ -281,6 +282,7 @@ export default function ChatWorkspace() {
       setStatus("Request failed");
     } finally {
       setSending(false);
+      pendingQueryRef.current = "";
     }
   }
 
@@ -355,28 +357,44 @@ export default function ChatWorkspace() {
           <button onClick={doLogout}>Logout</button>
         </div>
 
-        <div className="chat-session-list">
-          {sessions.map((item) => (
-            <div
-              key={item.id}
-              className={`session-item ${item.id === activeId ? "active" : ""}`}
-              onClick={() => switchSession(item.id)}
-              style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
-            >
-              <div style={{ display: "grid", gap: "3px", overflow: "hidden" }}>
-                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.title}</span>
-                <small>{new Date(item.updatedAt).toLocaleString()}</small>
-              </div>
-              <button
-                className="mini-button"
-                style={{ marginLeft: "6px", flexShrink: 0, padding: "3px 6px", background: "transparent", border: "1px solid #dcc6a6", color: "#b83232" }}
-                onClick={(e) => handleDeleteSession(item.id, e)}
-                title="Delete Chat"
+        <div className="chat-history-container">
+          <div className="history-header">
+            <span>Recent Activity</span>
+            <button className="new-chat-btn" onClick={createNewChat} title="New Chat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          </div>
+          <div className="chat-session-list">
+            {sessions.map((item) => (
+              <div
+                key={item.id}
+                className={`session-item ${item.id === activeId ? "active" : ""}`}
+                onClick={() => switchSession(item.id)}
               >
-                ✕
-              </button>
-            </div>
-          ))}
+                <div className="session-icon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </div>
+                <div className="session-info">
+                  <strong>{item.title || "Untitled Chat"}</strong>
+                  <p>{item.last_answer ? (item.last_answer.slice(0, 40) + (item.last_answer.length > 40 ? "..." : "")) : new Date(item.updatedAt).toLocaleString()}</p>
+                </div>
+                {sessions.length > 1 && (
+                  <button
+                    className="delete-session-btn"
+                    onClick={(e) => handleDeleteSession(item.id, e)}
+                    title="Delete Chat"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
 
       </aside>

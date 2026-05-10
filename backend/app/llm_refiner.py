@@ -215,10 +215,44 @@ class LLMRefiner:
                 used=False, backend=self.backend, model=self.model,
                 error="empty_llm_output", total_duration_ms=duration_ms,
             )
-        return RefineResult(
-            answer=out, used=True, backend=self.backend, model=self.model,
-            error=None, total_duration_ms=duration_ms,
+    def digest_into_graph(self, text: str) -> list[dict]:
+        """Extract factual edges from a provided text block for graph learning."""
+        content = (text or "").strip()
+        if self.backend not in ("ollama", "groq") or not content:
+            return []
+
+        prompt = (
+            "Extract factual relationships from the following text and return ONLY valid JSON.\n"
+            "Return a list of edges: "
+            '[{"source": "entity1", "target": "entity2", "relation": "IS_A|CAUSES|CORRELATES|TEMPORAL"}]\n'
+            "Rules:\n"
+            "- Use 'CORRELATES' for general associations.\n"
+            "- Keep entity names short and normalized (lowercase, no articles).\n"
+            "- Extract 2-5 most important relationships.\n\n"
+            f"Text: {content}\n"
         )
+        out, _, error = self._generate(prompt, temperature=0.0, max_tokens=250)
+        if error or not out:
+            return []
+
+        # Use robust JSON extraction
+        import re
+        json_match = re.search(r'\[.*\]', out, re.DOTALL)
+        text_to_parse = json_match.group(0) if json_match else out
+        try:
+            data = json.loads(text_to_parse)
+            if isinstance(data, list):
+                return [
+                    {
+                        "source": str(e["source"]).strip().lower(),
+                        "target": str(e["target"]).strip().lower(),
+                        "relation": str(e.get("relation", "CORRELATES")).strip().upper(),
+                    }
+                    for e in data if isinstance(e, dict) and "source" in e and "target" in e
+                ]
+        except Exception:
+            pass
+        return []
 
     def _build_parse_intent_prompt(self, question: str) -> str:
         return (

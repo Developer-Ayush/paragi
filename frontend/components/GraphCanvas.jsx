@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 
@@ -131,8 +131,8 @@ export default function GraphCanvas({ title, summary, nodeLimit = 26, edgeLimit 
               y1={from.y}
               x2={to.x}
               y2={to.y}
-              stroke={isActive ? "#d46220" : "#d6c099"}
-              strokeOpacity={0.95}
+              stroke={isActive ? "var(--accent)" : "var(--graph-line)"}
+              strokeOpacity={isActive ? 1.0 : 0.75}
               strokeWidth={Math.max(1.2, edge.strength * 4.2)}
               onMouseEnter={() => {
                 setHoveredEdge(edge);
@@ -161,7 +161,7 @@ export default function GraphCanvas({ title, summary, nodeLimit = 26, edgeLimit 
                 cx={p.x}
                 cy={p.y}
                 r={active ? 6.8 : 5.2}
-                fill={active ? "#b63c10" : "#8f4a21"}
+                fill={active ? "var(--accent)" : "var(--graph-node)"}
               />
               {renderLabel && (
                 <text
