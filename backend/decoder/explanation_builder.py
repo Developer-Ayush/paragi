@@ -15,22 +15,14 @@ class ExplanationBuilder:
         """
         Converts meaning representation into a draft narrative.
         """
-        chains = meaning.get("chains", [])
-        if not chains:
-            # Fallback to facts
-            facts = meaning.get("facts", [])
-            if not facts:
-                return "I couldn't find a clear explanation."
-            return ". ".join(facts) + "."
+        facts = meaning.get("facts", [])
+        if not facts:
+            # Fallback to chains
+            chains = meaning.get("chains", [])
+            if not chains:
+                return "I couldn't find a clear explanation in the knowledge graph."
+            return ". ".join(chains) + "."
 
-        # Convert chains to steps
-        narratives = []
-        for chain in chains:
-            steps = chain.split(" -> ")
-            if len(steps) > 1:
-                narrative = f"Starting with {steps[0]}, we see that it leads to {steps[1]}"
-                for i in range(2, len(steps)):
-                    narrative += f", which then results in {steps[i]}"
-                narratives.append(narrative)
-                
-        return ". ".join(narratives) + "."
+        # Capitalize and join facts
+        sentences = [f"{f[0].upper() + f[1:]}." for f in facts if f]
+        return " ".join(sentences)

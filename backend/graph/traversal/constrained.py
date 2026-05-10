@@ -13,23 +13,23 @@ def constrained_traversal(
     start_node_id: str,
     allowed_edge_types: Iterable[EdgeType],
     max_depth: int = 3
-) -> List[str]:
+) -> List[tuple[str, EdgeType, str]]:
     """
-    Traverses the graph only through specific edge types.
+    Traverses the graph and returns triples of (source_id, edge_type, target_id).
     """
     allowed_types = set(allowed_edge_types)
-    result: List[str] = []
+    triples: List[tuple[str, EdgeType, str]] = []
     visited: Set[str] = {start_node_id}
     stack = [(start_node_id, 0)]
 
     while stack:
         node_id, depth = stack.pop()
-        result.append(node_id)
         
         if depth < max_depth:
             for edge in graph.get_outgoing_edges(node_id):
                 if edge.edge_type in allowed_types and edge.target not in visited:
+                    triples.append((node_id, edge.edge_type, edge.target))
                     visited.add(edge.target)
                     stack.append((edge.target, depth + 1))
 
-    return result
+    return triples

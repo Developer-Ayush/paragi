@@ -75,9 +75,10 @@ def extract_entities(parsed: ParsedText) -> ExtractedEntities:
                 result.noun_phrases.append(phrase)
     else:
         # Heuristic: content tokens > 2 chars that aren't question words
-        _question_words = {"what", "why", "how", "when", "where", "who", "which"}
+        from .tokenizer import STOP_WORDS
+        _question_words = {"what", "why", "how", "when", "where", "who", "which", "is", "are"}
         for token in parsed.content_tokens:
-            if len(token) > 2 and token not in _question_words:
+            if len(token) > 2 and token not in _question_words and token not in STOP_WORDS:
                 if token not in result.entities:
                     result.entities.append(token)
 

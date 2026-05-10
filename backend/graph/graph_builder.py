@@ -43,8 +43,12 @@ class GraphBuilder:
         # 4. Process causal markers
         # (Implementation placeholder for causal strengthening)
 
-    def _ensure_node(self, label: str, node_type: NodeType) -> str:
+    def _ensure_node(self, label: str, node_type: NodeType) -> Optional[str]:
         """Ensure a node exists for a given label, creating it if necessary."""
+        from encoder.tokenizer import STOP_WORDS
+        if label.lower().strip() in STOP_WORDS or len(label) <= 2:
+            return None
+            
         node_id = self._generate_id(label)
         existing = self.graph.get_node(node_id)
         
@@ -82,6 +86,9 @@ class GraphBuilder:
         source_id = self._ensure_node(rel.source, NodeType.CONCEPT)
         target_id = self._ensure_node(rel.target, NodeType.CONCEPT)
         
+        if not source_id or not target_id:
+            return
+            
         existing_edge = self.graph.get_edge(source_id, target_id)
         
         if existing_edge:

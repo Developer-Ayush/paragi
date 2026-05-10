@@ -29,7 +29,7 @@ def tokenize_filtered(text: str, *, remove_stopwords: bool = True) -> List[str]:
     """Extract tokens and optionally remove stop words."""
     tokens = tokenize(text)
     if remove_stopwords:
-        return [t for t in tokens if t not in STOP_WORDS and len(t) > 1]
+        return [t for t in tokens if t not in STOP_WORDS and len(t) > 2]
     return tokens
 
 

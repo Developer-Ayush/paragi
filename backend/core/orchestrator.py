@@ -30,6 +30,7 @@ class CognitiveOrchestrator:
         self.reasoning = ReasoningRouter(self.kernel.graph)
         self.formatter = ResponseFormatter()
         self.generator = LanguageGenerator(llm_refiner=self.kernel.llm)
+        log.info(f"Orchestrator initialized with LLM backend: {self.kernel.llm.backend}")
 
     def process_query(self, text: str, user_id: str = "guest") -> Dict[str, Any]:
         """

@@ -37,27 +37,29 @@ class CausalReasoner:
             deltas = spread_activation(self.graph, sid, initial_energy=1.0)
             activated_nodes.update(deltas)
             
-        # 3. Find causal chains (constrained traversal)
-        causal_chains = []
+        # 3. Find causal facts (constrained traversal)
+        facts = []
         for sid in source_ids:
-            chain = constrained_traversal(
+            triples = constrained_traversal(
                 self.graph, sid, 
                 allowed_edge_types=[EdgeType.CAUSES, EdgeType.ASSOCIATED_WITH, EdgeType.IS_A],
                 max_depth=4
             )
-            if len(chain) > 1:
-                causal_chains.append(chain)
-                
-        # 4. Map back to human-readable labels
-        results = []
-        for chain in causal_chains:
-            labels = []
-            for nid in chain:
-                node = self.graph.get_node(nid)
-                if node:
-                    labels.append(node.label)
-            if labels:
-                results.append(" -> ".join(labels))
+            for src_id, edge_type, tgt_id in triples:
+                src_node = self.graph.get_node(src_id)
+                tgt_node = self.graph.get_node(tgt_id)
+                if src_node and tgt_node:
+                    # Convert edge type to human-readable verb
+                    from core.constants import EDGE_RELATION_TEXT
+                    rel_text = EDGE_RELATION_TEXT.get(edge_type, "is related to")
+                    facts.append(f"{src_node.label} {rel_text} {tgt_node.label}")
+                    
+        return {
+            "mode": "causal",
+            "facts": list(set(facts)), # Deduplicate
+            "chains": facts, # Keep for backward compat
+            "activated_concepts": active_labels
+        }
             
         # Filter activated nodes to only those that exist
         active_labels = []
