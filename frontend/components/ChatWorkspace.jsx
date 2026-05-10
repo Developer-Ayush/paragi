@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import GraphPanel from "@/components/GraphPanel";
+import Logo from "@/components/Logo";
+import ThemeToggle from "@/components/ThemeToggle";
+import { useTheme } from "@/components/ThemeProvider";
 import { getAuthSession, clearAuthSession } from "@/lib/auth";
 import { createSession, loadSessions, normalizeTitle, saveSessions, upsertSession, deleteSession } from "@/lib/chat-storage";
 import { health, llmStatus, logout, query, session, queryHistoryEvolution, getApiBase } from "@/lib/api";
@@ -28,6 +31,7 @@ export default function ChatWorkspace() {
   const urlChatId = searchParams.get("chatId");
   const [auth, setAuth] = useState(null);
   const [checking, setChecking] = useState(true);
+  const { theme, setTheme } = useTheme();
   const [sessions, setSessions] = useState([]);
   const [activeId, setActiveId] = useState("");
   const [draft, setDraft] = useState("");
@@ -325,7 +329,7 @@ export default function ChatWorkspace() {
     <main className="page chat-layout">
       <aside className="left-rail">
         <div className="brand-box">
-          <h1>Paragi Studio</h1>
+          <Logo theme={theme} className="rail-logo" />
           <p>Local-first memory agent with chat and graph introspection.</p>
         </div>
 
@@ -380,7 +384,10 @@ export default function ChatWorkspace() {
       <section className="chat-main">
         <header className="chat-header">
           <strong>{activeSession?.title || "Chat"}</strong>
-          <span>{status}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span>{status}</span>
+            <ThemeToggle theme={theme} setTheme={setTheme} />
+          </div>
         </header>
 
         <section className="message-list">

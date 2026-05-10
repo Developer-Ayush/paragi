@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Logo from "@/components/Logo";
+import ThemeToggle from "@/components/ThemeToggle";
+import { useTheme } from "@/components/ThemeProvider";
 import { getApiBase, googleLogin, login, register } from "@/lib/api";
 import { setAuthSession } from "@/lib/auth";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
@@ -11,6 +14,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [mode, setMode] = useState("login"); // 'login' or 'register'
+  const { theme, setTheme } = useTheme();
   
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
@@ -70,9 +74,12 @@ export default function LoginPage() {
   return (
     <GoogleOAuthProvider clientId={clientId}>
       <main className="page login-page">
+        <div style={{ position: "absolute", top: "20px", right: "20px", zIndex: 100 }}>
+          <ThemeToggle theme={theme} setTheme={setTheme} />
+        </div>
         <section className="login-card">
           <div style={{ textAlign: "center", marginBottom: "8px" }}>
-            <h1 style={{ fontSize: "1.8rem", color: "#4a3520", marginBottom: "4px" }}>Paragi Studio</h1>
+            <Logo theme={theme} className="login-logo" />
             <p style={{ fontSize: "0.9rem" }}>Your graph-native cognition engine.</p>
           </div>
 

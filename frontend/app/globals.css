@@ -12,6 +12,20 @@
   --shadow: 0 16px 40px rgba(52, 38, 16, 0.12);
 }
 
+body.dark {
+  --bg-top: #0a0a0a;
+  --bg-bottom: #121212;
+  --card: #181818;
+  --line: #333333;
+  --ink: #f4f1ea;
+  --muted: #a0a0a0;
+  --accent: #ff6b3d;
+  --accent-soft: #3d2419;
+  --ok: #34d399;
+  --danger: #f87171;
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -25,6 +39,14 @@ body {
   background:
     radial-gradient(1000px 500px at -10% -10%, #faebcf 0%, transparent 60%),
     radial-gradient(900px 480px at 110% -20%, #ffecc9 0%, transparent 60%),
+    linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+body.dark {
+  background:
+    radial-gradient(1000px 500px at -10% -10%, #1e1b15 0%, transparent 60%),
+    radial-gradient(900px 480px at 110% -20%, #241e15 0%, transparent 60%),
     linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
 }
 
@@ -126,6 +148,16 @@ input {
   box-shadow: 0 2px 4px rgba(0,0,0,0.03);
 }
 
+body.dark .mode-switch button,
+body.dark .rail-actions button,
+body.dark .chat-main .composer button,
+body.dark .graphs-actions button,
+body.dark .login-card button {
+  background: linear-gradient(180deg, #2a2a2a, #1f1f1f);
+  border-color: #444;
+  color: #eee;
+}
+
 .login-card button:hover {
   background: linear-gradient(180deg, #fff2e1, #f5e2c5);
   transform: translateY(-1px);
@@ -145,6 +177,28 @@ input {
   background: linear-gradient(180deg, #bd4e25, #ac411c);
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(159, 59, 25, 0.35);
+}
+
+.theme-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 8px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(0,0,0,0.05);
+  transform: rotate(12deg);
+}
+
+body.dark .theme-toggle-btn:hover {
+  background: rgba(255,255,255,0.05);
 }
 
 .chat-layout {
@@ -173,20 +227,35 @@ input {
 }
 
 .brand-box {
-  padding: 16px;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(120deg, #fff4dd, #fffaf2);
+  background: linear-gradient(120deg, var(--bg-top), var(--bg-bottom));
+}
+
+.rail-logo {
+  max-width: 240px;
+}
+
+.login-logo {
+  max-width: 280px;
+  margin: 0 auto 16px;
+  display: block;
 }
 
 .brand-box h1 {
-  margin: 0;
-  font-size: 1.06rem;
+  display: none;
 }
 
 .brand-box p {
-  margin: 6px 0 0;
+  text-align: center;
+  margin: 0;
   color: var(--muted);
   font-size: 0.85rem;
+  max-width: 240px;
 }
 
 .meta-box {

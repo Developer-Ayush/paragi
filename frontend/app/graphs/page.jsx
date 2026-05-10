@@ -1,8 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import GraphPanel from "@/components/GraphPanel";
+import ThemeToggle from "@/components/ThemeToggle";
+import { useTheme } from "@/components/ThemeProvider";
 import { historyByUser, session } from "@/lib/api";
 import { clearAuthSession, getAuthSession } from "@/lib/auth";
 
@@ -11,6 +13,7 @@ export default function GraphsPage() {
   const [userId, setUserId] = useState("");
   const [records, setRecords] = useState([]);
   const [ready, setReady] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -49,8 +52,9 @@ export default function GraphsPage() {
     <main className="page graphs-page">
       <div className="graphs-header">
         <h1>Graph Dashboard</h1>
-        <div className="graphs-actions">
+        <div className="graphs-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button onClick={() => router.push("/chat")}>Back to Chat</button>
+          <ThemeToggle theme={theme} setTheme={setTheme} />
         </div>
       </div>
 
