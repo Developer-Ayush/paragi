@@ -27,6 +27,13 @@ class EdgeType(str, Enum):
     PRECONDITION = "PRECONDITION"
     RESULT_OF = "RESULT_OF"
 
+    @classmethod
+    def get(cls, name: str, default: EdgeType = ASSOCIATED_WITH) -> EdgeType:
+        try:
+            return cls[name.upper()]
+        except (KeyError, AttributeError):
+            return default
+
 
 # ── Query Types ────────────────────────────────────────────────────────────────
 class QueryType(str, Enum):

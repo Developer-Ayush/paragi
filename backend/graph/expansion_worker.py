@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, List, Dict, Any
 from core.logger import get_logger
 from core.enums import EdgeType
 from .edge import Edge
+from utils.realtime_lookup import fetch_realtime_answer
 
 if TYPE_CHECKING:
     from core.kernel import CognitiveKernel
@@ -57,20 +58,30 @@ class ExpansionWorker:
                 log.error(f"Error in expansion worker: {e}")
 
     def _resolve(self, label: str) -> None:
-        """Resolve a concept using external sources (Mocked for now)."""
+        """Resolve a concept using external sources (Wikipedia + LLM Digest)."""
         log.info(f"Expanding knowledge for: {label}")
         
-        # 1. Check if we already have it
-        # (In a real system, we'd call ConceptNet API)
+        # 1. Fetch real-time data from Wikipedia
+        web_res = fetch_realtime_answer(f"What is {label}?")
+        if not web_res:
+            log.info(f"No web results for: {label}")
+            return
+            
+        summary, source = web_res
+        log.info(f"Found web knowledge for '{label}' from {source}")
         
-        # Simulated external knowledge
-        if label.lower() == "steam":
-            # Add: Steam --IS_A--> Gas, Steam --CAUSES--> Burn
-            self._add_external_fact(label, "gas", EdgeType.IS_A)
-            self._add_external_fact(label, "burn", EdgeType.CAUSES)
-        elif label.lower() == "ice":
-            self._add_external_fact(label, "water", EdgeType.IS_A)
-            self._add_external_fact(label, "cold", EdgeType.ASSOCIATED_WITH)
+        # 2. Use LLM to digest summary into graph edges
+        if self.kernel.llm:
+            edges = self.kernel.llm.digest_into_graph(summary)
+            for edge in edges:
+                self._add_external_fact(
+                    edge["source"], 
+                    edge["target"], 
+                    EdgeType.get(edge["relation"], EdgeType.ASSOCIATED_WITH)
+                )
+        else:
+            # Fallback if no LLM (Simple heuristic)
+            self._add_external_fact(label, "concept", EdgeType.IS_A)
 
     def _add_external_fact(self, source_label: str, target_label: str, edge_type: EdgeType) -> None:
         from graph.graph_builder import GraphBuilder

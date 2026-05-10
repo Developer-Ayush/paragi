@@ -76,7 +76,14 @@ class CognitiveOrchestrator:
             # Generate actual language from graph chains
             answer = self.generator.generate(reasoning_result, original_query=text)
         else:
-            answer = "I don't have enough information to form a reasoning chain."
+            # Trigger autonomous expansion for unknown concepts (§4.2)
+            all_concepts = list(set(ir.concepts + ir.entities))
+            if all_concepts:
+                for concept in all_concepts:
+                    self.kernel.expansion.enqueue(concept)
+                answer = "I don't have enough information to form a reasoning chain right now. I've initiated an autonomous knowledge expansion for these concepts. Ask me again in a few moments."
+            else:
+                answer = "I don't have enough information to form a reasoning chain."
             
         response = self.formatter.format(
             text=answer,
