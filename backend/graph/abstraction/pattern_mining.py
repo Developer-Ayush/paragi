@@ -1,32 +1,33 @@
-"""graph/abstraction/pattern_mining.py — Frequent subgraph pattern mining."""
+"""graph/abstraction/pattern_mining.py — Discovery of recurring relational motifs."""
 from __future__ import annotations
-from graph.graph_store import GraphStore
-from collections import defaultdict
 
-class PatternMiner:
-    """
-    Identifies recurring structural patterns in the cognitive graph.
-    Used to form new abstractions automatically (unsupervised learning).
-    """
-    def __init__(self, store: GraphStore):
-        self.store = store
+from typing import Dict, List, Tuple
+from graph.graph import GraphEngine
 
-    def mine_frequent_motifs(self) -> list[dict]:
-        """Identify common subgraph shapes (e.g., nodes with many outgoing same-type edges)."""
-        motifs = []
-        # Basic heuristic: look for hub nodes acting as centers
-        for node_id in self.store._nodes.keys():
-            outgoing = self.store.get_outgoing(node_id)
-            if len(outgoing) > 5:
-                types = defaultdict(int)
-                for e in outgoing:
-                    types[e.type.value] += 1
+
+def mine_frequent_patterns(graph: GraphEngine, min_count: int = 3) -> List[Tuple[str, str, int]]:
+    """
+    Identifies recurring relational structures in the graph.
+    Returns a list of (EdgeType, target_label_substring, count).
+    """
+    patterns: Dict[Tuple[str, str], int] = {}
+    
+    for node_id in graph.store.iter_node_ids():
+        edges = graph.store.list_outgoing(node_id)
+        for edge in edges:
+            target_label = graph.get_node_label(edge.target)
+            # Find common suffixes or prefixes (categories)
+            if " " in target_label:
+                category = target_label.split()[-1]
+                pattern = (edge.type.value, category)
+                patterns[pattern] = patterns.get(pattern, 0) + 1
                 
-                dominant_type = max(types.items(), key=lambda x: x[1], default=(None, 0))
-                if dominant_type[1] >= 3:
-                    motifs.append({
-                        "hub_id": node_id,
-                        "dominant_relation": dominant_type[0],
-                        "count": dominant_type[1]
-                    })
-        return sorted(motifs, key=lambda x: x["count"], reverse=True)
+    # Filter by min_count and sort
+    sorted_patterns = [
+        (etype, cat, count) 
+        for (etype, cat), count in patterns.items() 
+        if count >= min_count
+    ]
+    sorted_patterns.sort(key=lambda x: -x[2])
+    
+    return sorted_patterns
