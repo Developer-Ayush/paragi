@@ -125,7 +125,7 @@ class CognitiveGraph:
     def get_neighbors(self, node_id: str) -> Set[str]:
         neighbors = set()
         for e in self.get_outgoing_edges(node_id):
-            neighbors.add(edge.target)
+            neighbors.add(e.target)
         return neighbors
 
     def extract_subgraph(self, node_ids: Iterable[str]) -> CognitiveGraph:
