@@ -4,6 +4,7 @@ graph/edge.py — The High-Fidelity Edge domain object.
 from __future__ import annotations
 
 import time
+import math
 from typing import Any, Dict, Optional, List
 from core.enums import EdgeType
 from core.constants import (
@@ -78,9 +79,16 @@ class Edge:
         self.weight = max(EDGE_STRENGTH_FLOOR, min(EDGE_STRENGTH_MAX, self.weight + delta))
 
     def decay(self, base_rate: float = 0.01) -> None:
-        """Temporal decay of edge weight and vector."""
+        """
+        Temporal decay of edge weight and vector.
+        Implements exponential floor formula (§5.4):
+        strength(t) = floor + (initial − floor) × e^(−decay_rate × t)
+
+        For incremental cycle-based decay:
+        strength(n+1) = floor + (strength(n) - floor) * exp(-decay_rate)
+        """
         # Scalar weight decay
-        self.weight = max(EDGE_STRENGTH_FLOOR, self.weight * (1.0 - base_rate))
+        self.weight = EDGE_STRENGTH_FLOOR + (self.weight - EDGE_STRENGTH_FLOOR) * math.exp(-base_rate)
         
         # Vector decay (simplified for now, specific logic in vector_decay.py)
         for i in range(len(self.vector)):

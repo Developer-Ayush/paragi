@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Optional
 from graph.graph import CognitiveGraph
 from graph.graph_store import InMemoryGraphStore, GraphStore
+from graph.persistence.hdf5_store import HDF5GraphStore
 from .cognitive_cycle import CognitiveCycle
 from graph.expansion_worker import ExpansionWorker
 from graph.persistence.bloom import BloomFilter
@@ -21,16 +22,30 @@ class CognitiveKernel:
     """
 
     def __init__(self, store: Optional[GraphStore] = None) -> None:
-        self.store = store or InMemoryGraphStore()
+        settings = Settings.from_env()
+
+        if store:
+            self.store = store
+        elif settings.prefer_hdf5:
+            try:
+                self.store = HDF5GraphStore(settings.hdf5_path)
+            except Exception as e:
+                # Architectural violation to fallback silently if HDF5 is preferred
+                raise RuntimeError(f"Failed to initialize HDF5GraphStore at {settings.hdf5_path}: {e}")
+        else:
+            self.store = InMemoryGraphStore()
+
         self.graph = CognitiveGraph(self.store)
         
         # OS Layer Components
-        self.bloom = BloomFilter()
+        self.bloom = BloomFilter(
+            capacity=settings.bloom_capacity,
+            error_rate=settings.bloom_error_rate
+        )
         self.user_state = UserStateManager()
         self.personal_graphs = PersonalGraphManager()
         
         # LLM Interface (for semantic reconstruction)
-        settings = Settings.from_env()
         self.llm = LLMRefiner(
             backend=settings.llm_backend,
             model=settings.llm_model,

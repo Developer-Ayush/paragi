@@ -11,7 +11,7 @@ from pathlib import Path
 class BloomFilter:
     """Simple Bloom filter with JSON persistence."""
 
-    def __init__(self, capacity: int, error_rate: float, *, num_bits: int | None = None, num_hashes: int | None = None) -> None:
+    def __init__(self, capacity: int = 1000000, error_rate: float = 0.001, *, num_bits: int | None = None, num_hashes: int | None = None) -> None:
         if capacity <= 0:
             raise ValueError("capacity must be > 0")
         if not (0 < error_rate < 1):
@@ -80,4 +80,3 @@ class BloomFilter:
             raise ValueError("Bloom filter bit-array length mismatch")
         bloom._bits[:] = bit_bytes
         return bloom
-
