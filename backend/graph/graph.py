@@ -7,6 +7,8 @@ and provides high-level graph query and mutation interfaces.
 from __future__ import annotations
 
 import math
+import hashlib
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Iterable
 from core.enums import EdgeType, NodeType
 from core.logger import get_logger
@@ -15,6 +17,16 @@ from .edge import Edge
 from .graph_store import GraphStore
 
 log = get_logger(__name__)
+
+
+@dataclass
+class PathMatch:
+    """Represents a discovered path in the graph."""
+    node_ids: List[str]
+    node_labels: List[str]
+    edge_ids: List[str]
+    total_strength: float
+    confidence: float
 
 
 class CognitiveGraph:
@@ -209,3 +221,33 @@ class CognitiveGraph:
 
     def close(self) -> None:
         self.store.close()
+
+    def get_node_label(self, node_id: str) -> str:
+        node = self.get_node(node_id)
+        return node.label if node else "Unknown"
+
+    def get_node_by_label(self, label: str) -> Optional[Node]:
+        node_id = hashlib.sha256(label.lower().strip().encode()).hexdigest()[:16]
+        return self.get_node(node_id)
+
+    def find_paths(self, source_label: str, target_label: str, max_hops: int = 5, max_paths: int = 20) -> List[PathMatch]:
+        """Finds paths between two concept labels."""
+        # Implementation placeholder
+        return []
+
+    def create_edge(self, source_label: str, target_label: str, edge_type: EdgeType, strength: float = 0.5) -> None:
+        source_node = self.get_node_by_label(source_label)
+        if not source_node:
+            source_node = Node(id=hashlib.sha256(source_label.lower().strip().encode()).hexdigest()[:16], label=source_label)
+            self.add_node(source_node)
+
+        target_node = self.get_node_by_label(target_label)
+        if not target_node:
+            target_node = Node(id=hashlib.sha256(target_label.lower().strip().encode()).hexdigest()[:16], label=target_label)
+            self.add_node(target_node)
+
+        edge = Edge(source=source_node.id, target=target_node.id, edge_type=edge_type, weight=strength)
+        self.add_edge(edge)
+
+
+GraphEngine = CognitiveGraph
