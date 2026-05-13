@@ -25,9 +25,9 @@ async def health() -> Dict[str, Any]:
 
     return {
         "status": "ok",
-        "node_count": len(agent.kernel.graph._nodes),
-        "edge_count": len(agent.kernel.graph._edges),
-        "store_kind": type(agent.kernel.store).__name__,
+        "node_count": agent.kernel.graph.count_nodes(),
+        "edge_count": agent.kernel.graph.count_edges(),
+        "store_kind": agent.kernel.graph.store_kind,
         "llm_backend": agent.kernel.llm.backend if hasattr(agent.kernel, "llm") else "unknown",
     }
 
