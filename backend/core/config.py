@@ -98,7 +98,7 @@ class Settings:
             decoder_backend = "own"
 
         llm_backend = os.getenv("PARAGI_LLM_BACKEND", "none").strip().lower()
-        if llm_backend not in {"none", "ollama", "groq"}:
+        if llm_backend not in {"none", "ollama", "groq", "openrouter"}:
             llm_backend = "none"
 
         llm_model = os.getenv("PARAGI_LLM_MODEL", "gemma3:4b").strip() or "gemma3:4b"

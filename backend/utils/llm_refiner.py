@@ -53,7 +53,7 @@ class LLMRefiner:
         used_fallback: bool,
     ) -> RefineResult:
         raw = (base_answer or "").strip()
-        if self.backend not in ("ollama", "groq"):
+        if self.backend not in ("ollama", "groq", "openrouter"):
             return RefineResult(
                 answer=raw,
                 used=False,
@@ -148,8 +148,8 @@ class LLMRefiner:
             requires_personal_graph=False, requires_reasoning=False,
             requires_fallback=False, entities=[], learnability=0.0,
         )
-        if self.backend not in ("ollama", "groq") or not query:
-            empty.error = "llm_disabled" if self.backend not in ("ollama", "groq") else "empty"
+        if self.backend not in ("ollama", "groq", "openrouter") or not query:
+            empty.error = "llm_disabled" if self.backend not in ("ollama", "groq", "openrouter") else "empty"
             return empty
 
         prompt = self._build_parse_intent_prompt(query)
@@ -178,7 +178,7 @@ class LLMRefiner:
     ) -> RefineResult:
         """Step 2: Always produce a clean, human-readable final answer."""
         query = (question or "").strip()
-        if self.backend not in ("ollama", "groq"):
+        if self.backend not in ("ollama", "groq", "openrouter"):
             # LLM disabled — return graph answer as-is
             return RefineResult(
                 answer=graph_answer or "",
@@ -222,7 +222,7 @@ class LLMRefiner:
     def digest_into_graph(self, text: str) -> list[dict]:
         """Extract factual edges from a provided text block for graph learning."""
         content = (text or "").strip()
-        if self.backend not in ("ollama", "groq") or not content:
+        if self.backend not in ("ollama", "groq", "openrouter") or not content:
             return []
 
         prompt = (
@@ -404,13 +404,13 @@ class LLMRefiner:
             "backend": self.backend,
             "model": self.model,
             "base_url": self.base_url,
-            "enabled": self.backend in ("ollama", "groq"),
+            "enabled": self.backend in ("ollama", "groq", "openrouter"),
             "keep_alive": self.keep_alive,
         }
-        if self.backend == "groq":
+        if self.backend in ("groq", "openrouter"):
             payload["reachable"] = bool(self.api_key)
             payload["reason"] = "" if self.api_key else "missing_api_key"
-            payload["available_models"] = ["llama3-8b-8192", "llama3-70b-8192", "gemma2-9b-it"]
+            payload["available_models"] = ["google/gemma-2-9b-it:free", "mistralai/mistral-7b-instruct:free"]
             payload["model_available"] = True
             return payload
 
@@ -484,8 +484,8 @@ class LLMRefiner:
         )
 
     def _generate(self, prompt: str, *, temperature: float, max_tokens: int) -> tuple[str, float | None, str | None]:
-        if self.backend == "groq":
-            return self._request_generate_groq(prompt, temperature=temperature, max_tokens=max_tokens)
+        if self.backend in ("groq", "openrouter"):
+            return self._request_generate_openrouter(prompt, temperature=temperature, max_tokens=max_tokens)
 
         text, duration_ms, error, status = self._request_generate(
             prompt,
@@ -586,11 +586,11 @@ class LLMRefiner:
             pass
         return raw
 
-    def _request_generate_groq(
+    def _request_generate_openrouter(
         self, prompt: str, *, temperature: float, max_tokens: int
     ) -> tuple[str, float | None, str | None]:
         endpoint = "https://openrouter.ai/api/v1/chat/completions"
-        model = self.model if self.model and self.model != "google/gemma-4-31b-it:free" else "google/gemma-4-26b-a4b-it:free"
+        model = self.model if self.model else "google/gemma-2-9b-it:free"
         body = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
