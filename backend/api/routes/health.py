@@ -19,22 +19,25 @@ async def domains():
 
 @router.get("/health")
 async def health() -> Dict[str, Any]:
-    from api.server import graph_engine, settings
+    from api.server import agent
+    if agent is None:
+        return {"status": "starting"}
+
     return {
         "status": "ok",
-        "node_count": graph_engine.count_nodes(),
-        "edge_count": graph_engine.count_edges(),
-        "store_kind": graph_engine.store_kind,
-        "llm_backend": settings.llm_backend,
+        "node_count": len(agent.kernel.graph._nodes),
+        "edge_count": len(agent.kernel.graph._edges),
+        "store_kind": type(agent.kernel.store).__name__,
+        "llm_backend": agent.kernel.llm.backend if hasattr(agent.kernel, "llm") else "unknown",
     }
 
 
 @router.get("/llm/status")
 async def llm_status() -> Dict[str, Any]:
-    from api.server import llm_refiner, settings
-    if llm_refiner is None:
-        return {"backend": settings.llm_backend, "enabled": False}
+    from api.server import agent
+    if agent is None or not hasattr(agent.kernel, "llm"):
+        return {"enabled": False}
     try:
-        return llm_refiner.status()
+        return agent.kernel.llm.status()
     except Exception as e:
-        return {"backend": settings.llm_backend, "error": str(e)}
+        return {"backend": agent.kernel.llm.backend, "error": str(e)}

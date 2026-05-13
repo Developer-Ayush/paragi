@@ -37,6 +37,8 @@ class CognitiveKernel:
 
         self.graph = CognitiveGraph(self.store)
         
+        settings = Settings.from_env()
+
         # OS Layer Components
         self.bloom = BloomFilter(
             capacity=settings.bloom_capacity,
