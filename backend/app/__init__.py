@@ -1,1 +1,0 @@
-# Paragi shim
