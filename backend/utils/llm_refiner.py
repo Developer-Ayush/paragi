@@ -32,8 +32,8 @@ class LLMRefiner:
         api_key: str = "",
     ) -> None:
         self.backend = (backend or "none").strip().lower()
-        self.model = (model or "").strip() or "gemma3:4b"
-        self.base_url = (base_url or "http://127.0.0.1:11434").rstrip("/")
+        self.model = (model or "").strip() or "google/gemini-2.0-flash-lite-preview-02-05:free"
+        self.base_url = (base_url or "https://openrouter.ai").rstrip("/")
         self.timeout_seconds = float(max(1.0, timeout_seconds))
         self.temperature = float(max(0.0, min(1.5, temperature)))
         self.max_tokens = int(max(32, min(1024, max_tokens)))
@@ -53,7 +53,7 @@ class LLMRefiner:
         used_fallback: bool,
     ) -> RefineResult:
         raw = (base_answer or "").strip()
-        if self.backend not in ("ollama", "groq"):
+        if self.backend != "groq":
             return RefineResult(
                 answer=raw,
                 used=False,
@@ -148,8 +148,8 @@ class LLMRefiner:
             requires_personal_graph=False, requires_reasoning=False,
             requires_fallback=False, entities=[], learnability=0.0,
         )
-        if self.backend not in ("ollama", "groq") or not query:
-            empty.error = "llm_disabled" if self.backend not in ("ollama", "groq") else "empty"
+        if self.backend != "groq" or not query:
+            empty.error = "llm_disabled" if self.backend != "groq" else "empty"
             return empty
 
         prompt = self._build_parse_intent_prompt(query)
@@ -178,7 +178,7 @@ class LLMRefiner:
     ) -> RefineResult:
         """Step 2: Always produce a clean, human-readable final answer."""
         query = (question or "").strip()
-        if self.backend not in ("ollama", "groq"):
+        if self.backend != "groq":
             # LLM disabled — return graph answer as-is
             return RefineResult(
                 answer=graph_answer or "",
@@ -222,7 +222,7 @@ class LLMRefiner:
     def digest_into_graph(self, text: str) -> list[dict]:
         """Extract factual edges from a provided text block for graph learning."""
         content = (text or "").strip()
-        if self.backend not in ("ollama", "groq") or not content:
+        if self.backend != "groq" or not content:
             return []
 
         prompt = (
@@ -404,43 +404,19 @@ class LLMRefiner:
             "backend": self.backend,
             "model": self.model,
             "base_url": self.base_url,
-            "enabled": self.backend in ("ollama", "groq"),
+            "enabled": self.backend == "groq",
             "keep_alive": self.keep_alive,
         }
         if self.backend == "groq":
             payload["reachable"] = bool(self.api_key)
             payload["reason"] = "" if self.api_key else "missing_api_key"
-            payload["available_models"] = ["llama3-8b-8192", "llama3-70b-8192", "gemma2-9b-it"]
+            payload["available_models"] = ["google/gemini-2.0-flash-lite-preview-02-05:free"]
             payload["model_available"] = True
             return payload
 
-        if self.backend != "ollama":
-            payload["reachable"] = False
-            payload["reason"] = "disabled"
-            return payload
-
-        endpoint = f"{self.base_url}/api/tags"
-        try:
-            req = urllib.request.Request(endpoint, method="GET")
-            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
-                body = resp.read().decode("utf-8", errors="ignore")
-            data = json.loads(body)
-            models = data.get("models", [])
-            names: list[str] = []
-            if isinstance(models, list):
-                for row in models[:40]:
-                    if isinstance(row, dict):
-                        name = str(row.get("name", "")).strip()
-                        if name:
-                            names.append(name)
-            payload["reachable"] = True
-            payload["available_models"] = names
-            payload["model_available"] = self.model in set(names)
-            return payload
-        except Exception as exc:
-            payload["reachable"] = False
-            payload["reason"] = str(exc)
-            return payload
+        payload["reachable"] = False
+        payload["reason"] = "disabled"
+        return payload
 
     def _build_prompt(
         self,
@@ -484,113 +460,13 @@ class LLMRefiner:
         )
 
     def _generate(self, prompt: str, *, temperature: float, max_tokens: int) -> tuple[str, float | None, str | None]:
-        if self.backend == "groq":
-            return self._request_generate_groq(prompt, temperature=temperature, max_tokens=max_tokens)
+        return self._request_generate_openrouter(prompt, temperature=temperature, max_tokens=max_tokens)
 
-        text, duration_ms, error, status = self._request_generate(
-            prompt,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            include_keep_alive=True,
-            include_options=True,
-        )
-        if error is None:
-            return text, duration_ms, None
-
-        if status == 400:
-            text2, duration_ms2, error2, status2 = self._request_generate(
-                prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                include_keep_alive=False,
-                include_options=True,
-            )
-            if error2 is None:
-                return text2, duration_ms2, None
-            if status2 == 400:
-                text3, duration_ms3, error3, _status3 = self._request_generate(
-                    prompt,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    include_keep_alive=False,
-                    include_options=False,
-                )
-                if error3 is None:
-                    return text3, duration_ms3, None
-                return "", None, error3
-            return "", None, error2
-
-        return "", None, error
-
-    def _request_generate(
-        self,
-        prompt: str,
-        *,
-        temperature: float,
-        max_tokens: int,
-        include_keep_alive: bool,
-        include_options: bool,
-    ) -> tuple[str, float | None, str | None, int | None]:
-        endpoint = f"{self.base_url}/api/generate"
-        body = {
-            "model": self.model,
-            "prompt": prompt,
-            "stream": False,
-        }
-        if include_keep_alive:
-            body["keep_alive"] = self._coerce_keep_alive(self.keep_alive)
-        if include_options:
-            body["options"] = {
-                "temperature": float(max(0.0, min(1.5, temperature))),
-                "num_predict": int(max(32, min(1024, max_tokens))),
-                "seed": self.seed,
-            }
-        encoded = json.dumps(body, ensure_ascii=True).encode("utf-8")
-        req = urllib.request.Request(
-            endpoint,
-            data=encoded,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
-                payload = json.loads(resp.read().decode("utf-8", errors="ignore"))
-        except urllib.error.HTTPError as exc:
-            return "", None, f"http_error:{exc.code}", int(exc.code)
-        except urllib.error.URLError as exc:
-            return "", None, f"connection_error:{exc.reason}", None
-        except TimeoutError:
-            return "", None, "timeout", None
-        except Exception as exc:
-            return "", None, str(exc), None
-
-        text = str(payload.get("response", "")).strip()
-        total_duration_ns = payload.get("total_duration")
-        duration_ms = None
-        try:
-            if total_duration_ns is not None:
-                duration_ms = float(total_duration_ns) / 1_000_000.0
-        except Exception:
-            duration_ms = None
-        return text, duration_ms, None, None
-
-    @staticmethod
-    def _coerce_keep_alive(value: str) -> str | int:
-        raw = (value or "").strip()
-        if not raw:
-            return "30m"
-        try:
-            if raw.lstrip("-").isdigit():
-                return int(raw)
-        except Exception:
-            pass
-        return raw
-
-    def _request_generate_groq(
+    def _request_generate_openrouter(
         self, prompt: str, *, temperature: float, max_tokens: int
     ) -> tuple[str, float | None, str | None]:
         endpoint = "https://openrouter.ai/api/v1/chat/completions"
-        model = self.model if self.model and self.model != "google/gemma-4-31b-it:free" else "google/gemma-4-26b-a4b-it:free"
+        model = self.model or "google/gemini-2.0-flash-lite-preview-02-05:free"
         body = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],

@@ -22,7 +22,7 @@ Paragi is an experimental cognitive runtime that prioritizes **relational infere
 
 ## 🛠 Tech Stack
 
-- **Backend**: FastAPI (Python), HDF5 (Graph Store), Bloom Filters (RAM Indexing), Ollama (Local LLM Refinement).
+- **Backend**: FastAPI (Python), HDF5 (Graph Store), Bloom Filters (RAM Indexing), OpenRouter (LLM Refinement).
 - **Frontend**: Next.js (React), Framer Motion (Animations), Tailwind CSS, Firebase Auth.
 
 ## 🚦 Getting Started
@@ -31,7 +31,7 @@ Paragi is an experimental cognitive runtime that prioritizes **relational infere
 
 - Python 3.10+
 - Node.js 18+
-- [Ollama](https://ollama.com/) (running locally)
+- [OpenRouter API Key](https://openrouter.ai/)
 - Firebase Project (for Auth)
 
 ### Backend Setup

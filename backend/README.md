@@ -127,8 +127,8 @@ uvicorn app.main:app --reload
 - Encoder model and training data paths can be overridden via `PARAGI_ENCODER_MODEL_PATH` and `PARAGI_ENCODER_TRAINING_PATH`.
 - Decoder backend is controlled by `PARAGI_DECODER_BACKEND` (`own`, `temporary`). Default is `own`.
 - Decoder model path can be overridden via `PARAGI_DECODER_MODEL_PATH`.
-- LLM answer refinement is controlled by `PARAGI_LLM_BACKEND` (`none`, `ollama`). Default is `none`.
-- Ollama options: `PARAGI_LLM_MODEL` (default `gemma3:4b`), `PARAGI_LLM_BASE_URL` (default `http://127.0.0.1:11434`), `PARAGI_LLM_TIMEOUT_SECONDS`, `PARAGI_LLM_TEMPERATURE`, `PARAGI_LLM_MAX_TOKENS`, `PARAGI_LLM_SEED`, `PARAGI_LLM_KEEP_ALIVE`.
+- LLM answer refinement is controlled by `PARAGI_LLM_BACKEND` (`none`, `groq`). Default is `groq`.
+- OpenRouter options: `PARAGI_LLM_MODEL` (default `google/gemini-2.0-flash-lite-preview-02-05:free`), `PARAGI_LLM_TIMEOUT_SECONDS`, `PARAGI_LLM_TEMPERATURE`, `PARAGI_LLM_MAX_TOKENS`, `PARAGI_LLM_API_KEY` (or `GROQ_API_KEY`).
 - LLM routing policy: `PARAGI_LLM_POLICY` = `smart|always|unknown_only` (default `smart`).
 - Query mode classifier marks realtime/open web-style questions and disables graph learning for those queries.
 - Realtime mode examples: `who is ...`, `latest ...`, `current ...`, `today ...`; these do not create graph edges/nodes or award contribution credits.
@@ -141,16 +141,14 @@ uvicorn app.main:app --reload
   - confirm `GET /health` returns `persistent_memory: true`
 - Query rewriter persistence path can be overridden via `PARAGI_QUERY_REWRITER_PATH`.
 
-## Use Gemma With Ollama
+## Use OpenRouter
 
 ```powershell
 cd backend
-ollama pull gemma3:4b
-$env:PARAGI_LLM_BACKEND="ollama"
-$env:PARAGI_LLM_MODEL="gemma3:4b"
-$env:PARAGI_LLM_BASE_URL="http://127.0.0.1:11434"
+$env:PARAGI_LLM_BACKEND="groq"
+$env:PARAGI_LLM_MODEL="google/gemini-2.0-flash-lite-preview-02-05:free"
+$env:PARAGI_LLM_API_KEY="your_openrouter_key"
 $env:PARAGI_LLM_POLICY="smart"
-$env:PARAGI_LLM_KEEP_ALIVE="30m"
 uvicorn app.main:app --reload
 ```
 
