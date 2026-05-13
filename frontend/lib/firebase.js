@@ -11,8 +11,8 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const auth = getAuth(app);
+const app = getApps().length === 0 && firebaseConfig.apiKey ? initializeApp(firebaseConfig) : (getApps()[0] || null);
+const auth = app ? getAuth(app) : null;
 const googleProvider = new GoogleAuthProvider();
 
 export { auth, googleProvider, signInWithPopup };
