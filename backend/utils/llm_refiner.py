@@ -31,9 +31,9 @@ class LLMRefiner:
         keep_alive: str = "30m",
         api_key: str = "",
     ) -> None:
-        self.backend = (backend or "none").strip().lower()
-        self.model = (model or "").strip() or "gemma3:4b"
-        self.base_url = (base_url or "http://127.0.0.1:11434").rstrip("/")
+        self.backend = (backend or "openrouter").strip().lower()
+        self.model = (model or "").strip() or "google/gemma-2-9b-it:free"
+        self.base_url = (base_url or "https://openrouter.ai/api/v1").rstrip("/")
         self.timeout_seconds = float(max(1.0, timeout_seconds))
         self.temperature = float(max(0.0, min(1.5, temperature)))
         self.max_tokens = int(max(32, min(1024, max_tokens)))
@@ -414,11 +414,11 @@ class LLMRefiner:
             payload["model_available"] = True
             return payload
 
-        if self.backend != "ollama":
-            payload["reachable"] = False
-            payload["reason"] = "disabled"
-            return payload
+        payload["reachable"] = False
+        payload["reason"] = "disabled"
+        return payload
 
+        # Removed local ollama check for now to prioritize openrouter
         endpoint = f"{self.base_url}/api/tags"
         try:
             req = urllib.request.Request(endpoint, method="GET")

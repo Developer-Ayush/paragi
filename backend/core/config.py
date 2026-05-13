@@ -97,11 +97,11 @@ class Settings:
         if decoder_backend not in {"own", "temporary"}:
             decoder_backend = "own"
 
-        llm_backend = os.getenv("PARAGI_LLM_BACKEND", "none").strip().lower()
+        llm_backend = os.getenv("PARAGI_LLM_BACKEND", "openrouter").strip().lower()
         if llm_backend not in {"none", "ollama", "groq", "openrouter"}:
-            llm_backend = "none"
+            llm_backend = "openrouter"
 
-        llm_model = os.getenv("PARAGI_LLM_MODEL", "gemma3:4b").strip() or "gemma3:4b"
+        llm_model = os.getenv("PARAGI_LLM_MODEL", "google/gemma-2-9b-it:free").strip() or "google/gemma-2-9b-it:free"
         llm_base_url = os.getenv("PARAGI_LLM_BASE_URL", "http://127.0.0.1:11434").strip() or "http://127.0.0.1:11434"
         llm_timeout_seconds = float(os.getenv("PARAGI_LLM_TIMEOUT_SECONDS", "45"))
         llm_temperature = float(os.getenv("PARAGI_LLM_TEMPERATURE", "0.2"))
