@@ -222,6 +222,16 @@ class CognitiveGraph:
     def close(self) -> None:
         self.store.close()
 
+    def count_nodes(self) -> int:
+        return len(self._nodes)
+
+    def count_edges(self) -> int:
+        return len(self._edges)
+
+    @property
+    def store_kind(self) -> str:
+        return type(self.store).__name__
+
     def get_node_label(self, node_id: str) -> str:
         node = self.get_node(node_id)
         return node.label if node else "Unknown"
