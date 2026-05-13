@@ -26,10 +26,6 @@ export default function LoginPage() {
   const apiBase = useMemo(() => getApiBase(), []);
 
   async function handleFirebaseLogin() {
-    if (!auth) {
-      setError("Firebase not configured.");
-      return;
-    }
     setLoading(true);
     setError("");
     try {
