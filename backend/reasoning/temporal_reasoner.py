@@ -35,7 +35,15 @@ class TemporalReasoner:
         )
         
         # 3. Format results
-        events = [self.graph.get_node(nid).label for nid in timeline]
+        events = []
+        for src_id, _, tgt_id in timeline:
+            if not events:
+                src_node = self.graph.get_node(src_id)
+                if src_node: events.append(src_node.label)
+
+            tgt_node = self.graph.get_node(tgt_id)
+            if tgt_node and tgt_node.label not in events:
+                events.append(tgt_node.label)
         
         return {
             "mode": "temporal",

@@ -16,6 +16,7 @@ class GraphStore:
     def list_edges(self) -> List[Dict[str, Any]]: raise NotImplementedError
     def upsert_edge(self, data: Dict[str, Any]) -> None: raise NotImplementedError
     def delete_edge(self, source: str, target: str) -> None: raise NotImplementedError
+    def list_outgoing(self, source_id: str) -> List[Dict[str, Any]]: raise NotImplementedError
     
     def close(self) -> None: pass
 
@@ -54,3 +55,7 @@ class InMemoryGraphStore(GraphStore):
         with self._lock:
             key = f"{source}->{target}"
             self._edges.pop(key, None)
+
+    def list_outgoing(self, source_id: str) -> List[Dict[str, Any]]:
+        with self._lock:
+            return [e for e in self._edges.values() if e["source"] == source_id]

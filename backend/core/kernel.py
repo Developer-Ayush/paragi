@@ -24,13 +24,17 @@ class CognitiveKernel:
         self.store = store or InMemoryGraphStore()
         self.graph = CognitiveGraph(self.store)
         
+        settings = Settings.from_env()
+
         # OS Layer Components
-        self.bloom = BloomFilter()
+        self.bloom = BloomFilter(
+            capacity=settings.bloom_capacity,
+            error_rate=settings.bloom_error_rate
+        )
         self.user_state = UserStateManager()
         self.personal_graphs = PersonalGraphManager()
         
         # LLM Interface (for semantic reconstruction)
-        settings = Settings.from_env()
         self.llm = LLMRefiner(
             backend=settings.llm_backend,
             model=settings.llm_model,
