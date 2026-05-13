@@ -50,7 +50,7 @@ class Settings:
     query_rewriter_path: Path
 
     # ── LLM (semantic translation boundary only) ──────────────────────────
-    llm_backend: str               # none | ollama | groq
+    llm_backend: str               # none | groq
     llm_model: str
     llm_base_url: str
     llm_timeout_seconds: float
@@ -97,12 +97,12 @@ class Settings:
         if decoder_backend not in {"own", "temporary"}:
             decoder_backend = "own"
 
-        llm_backend = os.getenv("PARAGI_LLM_BACKEND", "none").strip().lower()
-        if llm_backend not in {"none", "ollama", "groq"}:
-            llm_backend = "none"
+        llm_backend = os.getenv("PARAGI_LLM_BACKEND", "groq").strip().lower()
+        if llm_backend not in {"none", "groq"}:
+            llm_backend = "groq"
 
-        llm_model = os.getenv("PARAGI_LLM_MODEL", "gemma3:4b").strip() or "gemma3:4b"
-        llm_base_url = os.getenv("PARAGI_LLM_BASE_URL", "http://127.0.0.1:11434").strip() or "http://127.0.0.1:11434"
+        llm_model = os.getenv("PARAGI_LLM_MODEL", "google/gemini-2.0-flash-lite-preview-02-05:free").strip() or "google/gemini-2.0-flash-lite-preview-02-05:free"
+        llm_base_url = os.getenv("PARAGI_LLM_BASE_URL", "https://openrouter.ai").strip() or "https://openrouter.ai"
         llm_timeout_seconds = float(os.getenv("PARAGI_LLM_TIMEOUT_SECONDS", "45"))
         llm_temperature = float(os.getenv("PARAGI_LLM_TEMPERATURE", "0.2"))
         llm_max_tokens = int(os.getenv("PARAGI_LLM_MAX_TOKENS", "220"))

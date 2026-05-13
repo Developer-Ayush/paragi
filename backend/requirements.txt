@@ -8,7 +8,6 @@ readability-lxml
 playwright
 beautifulsoup4
 spacy
-ollama
 requests
 google-auth
 gunicorn
