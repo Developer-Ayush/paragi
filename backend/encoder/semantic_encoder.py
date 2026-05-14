@@ -1,62 +1,84 @@
 """
-encoder/semantic_encoder.py — Orchestrate text-to-SemanticIR conversion.
+encoder/semantic_encoder.py — Orchestrate text-to-SemanticIR conversion via OpenRouter.
 """
 from __future__ import annotations
 
-from typing import List, Dict, Any
-from core.semantic_ir import SemanticIR
+from typing import List, Dict, Any, TYPE_CHECKING
+from core.semantic_ir import SemanticIR, IRRelation
 from core.logger import get_logger
-from .parser import parse, ParsedText
-from .entity_extractor import extract_entities
-from .relation_extractor import extract_relations
-from .intent_classifier import classify
+from core.enums import EdgeType
+
+if TYPE_CHECKING:
+    from utils.llm_refiner import LLMRefiner
 
 log = get_logger(__name__)
 
 
 class SemanticEncoder:
     """
-    Coordinates extraction and classification to produce a SemanticIR.
+    Coordinates extraction and classification to produce a SemanticIR using OpenRouter.
     """
 
+    def __init__(self, llm: LLMRefiner | None = None):
+        self.llm = llm
+
     def encode(self, text: str) -> SemanticIR:
-        """Process raw text into SemanticIR."""
-        log.info(f"Encoding text: {text}")
+        """Process raw text into SemanticIR using LLM-first strategy."""
+        log.info(f"Encoding text via LLM: {text}")
         
-        # 1. Parse text
-        parsed = parse(text)
-        
-        # 2. Extract entities
-        extracted_entities = extract_entities(parsed)
-        
-        # 3. Extract relations
-        relations = extract_relations(parsed)
-        
-        # 4. Classify intent
-        intent_info = classify(parsed)
-        
-        # 5. Build SemanticIR
-        # Ensure relation participants are anchored as concepts
-        relation_concepts = []
-        for rel in relations:
-            relation_concepts.extend([rel.source, rel.target])
+        if not self.llm or self.llm.backend == "none":
+            # Fallback to legacy heuristic if no LLM
+            from .parser import parse
+            from .entity_extractor import extract_entities
+            from .relation_extractor import extract_relations
+            from .intent_classifier import classify
             
+            parsed = parse(text)
+            extracted = extract_entities(parsed)
+            relations = extract_relations(parsed)
+            intent_info = classify(parsed)
+
+            return SemanticIR(
+                text=text,
+                entities=extracted.entities,
+                concepts=extracted.noun_phrases,
+                relations=relations,
+                intent=intent_info.kind,
+                confidence=intent_info.confidence,
+                metadata={"reasoning_mode": intent_info.mode.value}
+            )
+
+        # ── Step 1: OpenRouter Parse ──────────────────────────────────────────
+        parsed = self.llm.parse_intent(text)
+
+        # ── Step 2: Convert to IRRelations ─────────────────────────────────────
+        ir_relations = []
+        for edge in parsed.graph_edges:
+            try:
+                rel = IRRelation(
+                    source=edge["source"],
+                    relation=EdgeType.get(edge["relation"], EdgeType.ASSOCIATED_WITH),
+                    target=edge["target"],
+                    confidence=edge.get("confidence", 0.9)
+                )
+                ir_relations.append(rel)
+            except Exception as e:
+                log.warning(f"Failed to parse LLM edge: {edge} -> {e}")
+
+        # ── Step 3: Build SemanticIR ──────────────────────────────────────────
         ir = SemanticIR(
-            text=parsed.raw,
-            tokens=parsed.tokens,
-            entities=extracted_entities.entities,
-            concepts=list(set(extracted_entities.noun_phrases + relation_concepts)),
-            relations=relations,
-            intent=intent_info.kind,
-            confidence=intent_info.confidence,
+            text=text,
+            entities=parsed.entities,
+            concepts=parsed.concepts,
+            relations=ir_relations,
+            intent=parsed.kind,
+            confidence=parsed.learnability,
             metadata={
-                "reasoning_mode": intent_info.mode.value,
-                "proper_nouns": extracted_entities.proper_nouns,
-                "categories": extracted_entities.semantic_categories
+                "query_type": parsed.query_type,
+                "emotional_tone": parsed.emotional_tone,
+                "requires_web": parsed.requires_web,
+                "reasoning_mode": "general"
             }
         )
-        
-        # 6. Extract markers (temporal/causal)
-        # Placeholder for specialized markers extraction
         
         return ir

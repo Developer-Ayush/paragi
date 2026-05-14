@@ -1,39 +1,45 @@
 """
-decoder/language_generator.py — Fluency layer and text generation.
+decoder/language_generator.py — Generate natural language via OpenRouter.
 """
 from __future__ import annotations
 
-from typing import Dict, Any, List, Optional
-from utils.llm_refiner import LLMRefiner
-from .explanation_builder import ExplanationBuilder
+from typing import Dict, Any, TYPE_CHECKING
+from core.logger import get_logger
+
+if TYPE_CHECKING:
+    from utils.llm_refiner import LLMRefiner
+
+log = get_logger(__name__)
 
 
 class LanguageGenerator:
     """
-    Translates the meaning representation into fluent natural language.
+    Produces final natural language responses using OpenRouter refinement.
     """
 
-    def __init__(self, llm_refiner: Optional[LLMRefiner] = None) -> None:
-        self.refiner = llm_refiner
-        self.explanation_builder = ExplanationBuilder()
+    def __init__(self, llm_refiner: LLMRefiner) -> None:
+        self.llm = llm_refiner
 
-    def generate(self, meaning: Dict[str, Any], original_query: str = "") -> str:
+    def generate(self, reasoning_result: Dict[str, Any], original_query: str) -> str:
         """
-        Produces the final natural language response.
+        Takes graph reasoning facts and produces a fluent response.
         """
-        # 1. Build base narrative from graph structure
-        base_narrative = self.explanation_builder.build_narrative(meaning)
+        facts = reasoning_result.get("facts", [])
+        chains = reasoning_result.get("chains", [])
+
+        # Merge all found knowledge into a context string
+        base_context = ". ".join(list(set(facts + chains)))
+
+        if not self.llm or self.llm.backend == "none":
+            return base_context if base_context else "I don't have enough information to answer that."
+
+        # Use OpenRouter to refine the facts into a "sleek" response
+        refinement = self.llm.format_response(
+            question=original_query,
+            graph_answer=base_context,
+            node_path=reasoning_result.get("activated_concepts", []),
+            confidence=0.9 if base_context else 0.0,
+            intent_kind=reasoning_result.get("mode", "general")
+        )
         
-        # 2. Refine with LLM for fluency (if available)
-        if self.refiner:
-            # We adapt meaning to RefineResult format
-            refine_res = self.refiner.format_response(
-                question=original_query,
-                graph_answer=base_narrative,
-                node_path=meaning.get("chains", []),
-                confidence=0.8, # Default for reasoning results
-                intent_kind=meaning.get("mode", "general")
-            )
-            return refine_res.answer
-            
-        return base_narrative
+        return refinement.answer

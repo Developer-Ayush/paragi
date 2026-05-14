@@ -34,7 +34,7 @@ class CognitiveOrchestrator:
 
     def __init__(self, kernel: "CognitiveKernel") -> None:
         self.kernel = kernel
-        self.encoder = SemanticEncoder()
+        self.encoder = SemanticEncoder(llm=self.kernel.llm)
         self.builder = GraphBuilder(self.kernel.graph)
         self.reasoning = ReasoningRouter(self.kernel.graph)
         self.formatter = ResponseFormatter()
