@@ -77,13 +77,14 @@ class ExpansionWorker:
                 self._add_external_fact(
                     edge["source"], 
                     edge["target"], 
-                    EdgeType.get(edge["relation"], EdgeType.ASSOCIATED_WITH)
+                    EdgeType.get(edge["relation"], EdgeType.ASSOCIATED_WITH),
+                    vector=edge.get("vector")
                 )
         else:
             # Fallback if no LLM (Simple heuristic)
             self._add_external_fact(label, "concept", EdgeType.IS_A)
 
-    def _add_external_fact(self, source_label: str, target_label: str, edge_type: EdgeType) -> None:
+    def _add_external_fact(self, source_label: str, target_label: str, edge_type: EdgeType, vector: List[float] | None = None) -> None:
         from graph.graph_builder import GraphBuilder
         builder = GraphBuilder(self.kernel.graph)
         
@@ -93,6 +94,7 @@ class ExpansionWorker:
             target_label=target_label,
             edge_type=edge_type,
             weight=0.6,
-            confidence=0.8
+            confidence=0.8,
+            vector=vector
         )
         log.info(f"Learned external fact: {source_label} --{edge_type}--> {target_label}")

@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: paragi-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -k uvicorn.workers.UvicornWorker main:app
+    rootDir: backend
+    envVars:
+      - key: PARAGI_PREFER_HDF5
+        value: "1"
+      - key: PARAGI_RELOAD
+        value: "0"
+      - key: PORT
+        value: "8000"
+      - key: LOG_LEVEL
+        value: "info"
+      - key: PARAGI_LLM_BACKEND
+        value: "groq"
+      - key: PARAGI_LLM_BASE_URL
+        value: "https://openrouter.ai/api/v1"
+      - key: PARAGI_LLM_MODEL
+        value: "google/gemini-2.0-flash-lite-preview-02-05:free"

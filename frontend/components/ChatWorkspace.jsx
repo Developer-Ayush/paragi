@@ -5,24 +5,26 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Send, 
-  Cpu, 
   Network, 
   History, 
   LogOut, 
   Plus, 
-  RefreshCw, 
   Zap, 
   ShieldCheck,
   BrainCircuit,
-  Settings
+  PanelLeftClose,
+  PanelLeftOpen,
+  MessageSquare,
+  Compass,
+  Activity
 } from "lucide-react";
 import GraphPanel from "@/components/GraphPanel";
 import Logo from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useTheme } from "@/components/ThemeProvider";
 import { getAuthSession, clearAuthSession } from "@/lib/auth";
-import { createSession, loadSessions, normalizeTitle, saveSessions, upsertSession, deleteSession } from "@/lib/chat-storage";
-import { health, llmStatus, logout, query, session, queryHistoryEvolution, getApiBase, userProfile } from "@/lib/api";
+import { createSession, loadSessions, saveSessions, upsertSession } from "@/lib/chat-storage";
+import { health, llmStatus, query, session, userProfile, getApiBase } from "@/lib/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
 function makeMessage(role, text, meta = null) {
@@ -52,7 +54,8 @@ export default function ChatWorkspace() {
   const [activeId, setActiveId] = useState("");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
-  const [status, setStatus] = useState("System Ready");
+  const [status, setStatus] = useState("Operational");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [meta, setMeta] = useState({ health: "-", llm: "-" });
   const [refreshSignal, setRefreshSignal] = useState(0);
 
@@ -103,7 +106,7 @@ export default function ChatWorkspace() {
         setAuth({ token: local.token, userId: sessionData.user_id, tier: sessionData.tier });
         const existing = loadSessions(sessionData.user_id);
         if (existing.length === 0) {
-          const first = createSession("Initial Sequence");
+          const first = createSession("Initial Protocol");
           setSessions([first]);
           setActiveId(first.id);
           router.replace(`?chatId=${first.id}`);
@@ -125,7 +128,7 @@ export default function ChatWorkspace() {
     }
     boot();
     return () => { cancelled = true; };
-  }, [router]);
+  }, [router, urlChatId]);
 
   useEffect(() => {
     if (auth?.userId) saveSessions(auth.userId, sessions);
@@ -134,9 +137,9 @@ export default function ChatWorkspace() {
   async function refreshSystemMeta() {
     try {
       const [h, l] = await Promise.all([health(), llmStatus()]);
-      setMeta({ health: h.store, llm: l.model });
+      setMeta({ health: h.store_kind, llm: l.model });
     } catch {
-      setMeta({ health: "offline", llm: "offline" });
+      setMeta({ health: "Offline", llm: "Offline" });
     }
   }
 
@@ -180,7 +183,7 @@ export default function ChatWorkspace() {
     setDraft("");
     pendingQueryRef.current = text;
     setSending(true);
-    setStatus("Tracing paths...");
+    setStatus("Traversing...");
     appendMessage("user", text);
     try {
       const data = await query({ text, user_id: auth.userId, scope: "auto", chat_id: activeId });
@@ -188,177 +191,228 @@ export default function ChatWorkspace() {
         confidence: data.confidence,
         path: data.node_path,
         scope: data.scope,
-        benefits_main_graph: data.benefits_main_graph,
-        history_record_id: data.history_record_id,
       });
+
+      // Sleek streaming simulation
       const words = String(data.answer || "").split(" ");
       let currentText = "";
       for (const word of words) {
         currentText += (currentText ? " " : "") + word;
         patchMessage(botMessageId, { text: currentText });
-        await sleep(10);
+        await sleep(15);
       }
-      setStatus("Result Anchored");
+      setStatus("Operational");
       setRefreshSignal((v) => v + 1);
       refreshProfile();
     } catch (err) {
-      appendMessage("assistant", `Cognitive blockage: ${err.message}`);
-      setStatus("Sequence Error");
+      appendMessage("assistant", `Cognitive disruption: ${err.message}`);
+      setStatus("Error");
     } finally {
       setSending(false);
       pendingQueryRef.current = "";
     }
   }
 
-  if (checking) return <div className="page center mono" style={{color:'var(--accent)'}}>BOOTING COGNITIVE RUNTIME...</div>;
+  if (checking) return (
+    <div className="h-screen w-screen flex flex-col items-center justify-center bg-white dark:bg-stone-950">
+      <Logo theme={theme} className="w-16 h-16 animate-pulse mb-8" />
+      <div className="mono text-stone-400 animate-pulse">Initializing Paragi Core...</div>
+    </div>
+  );
 
   return (
-    <div className="chat-layout">
-      {/* SIDEBAR */}
-      <aside className="card-container left-rail">
-        <div className="brand-box">
-          <Logo theme={theme} className="rail-logo" />
-        </div>
-        
-        <div className="meta-box mono">
-          <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-             <Zap size={14} color="var(--accent)" />
-             <span>BALANCE: <strong>{profile?.credit_balance ?? 0}</strong></span>
-          </div>
-          <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-             <ShieldCheck size={14} color="var(--secondary)" />
-             <span>TIER: {profile?.tier?.toUpperCase()}</span>
-          </div>
-        </div>
-
-        <div className="rail-actions mono" style={{display:'grid', gap:'8px', padding:'12px 24px'}}>
-           <button className="flex items-center gap-2" onClick={() => {
-               const fresh = createSession("New Sequence");
-               setSessions(p => upsertSession(p, fresh));
-               setActiveId(fresh.id);
-               router.push(`?chatId=${fresh.id}`);
-           }}>
-             <Plus size={16} /> NEW SESSION
-           </button>
-           <button className="flex items-center gap-2" onClick={() => router.push("/graphs")}>
-              <Network size={16} /> DATA EXPLORER
-           </button>
-        </div>
-
-        <div className="chat-history-container" style={{flex:1, overflow:'hidden'}}>
-           <div className="history-header mono" style={{padding:'12px 24px', fontSize:'11px', borderBottom:'1px solid var(--border)'}}>
-              <History size={12} style={{marginRight:'8px'}}/> PREVIOUS STATES
-           </div>
-           <div className="chat-session-list" style={{padding:'8px 12px'}}>
-              {sessions.map(s => (
-                <motion.div 
-                  key={s.id} 
-                  initial={{opacity:0}} animate={{opacity:1}}
-                  className={`session-item ${s.id === activeId ? 'active' : ''}`}
-                  onClick={() => { setActiveId(s.id); router.push(`?chatId=${s.id}`); }}
-                  style={{padding:'10px 14px', borderRadius:'8px', cursor:'pointer', marginBottom:'4px'}}
-                >
-                  <div className="mono" style={{fontSize:'13px', fontWeight:600}}>{s.title}</div>
-                  <div className="mono" style={{fontSize:'9px', opacity:0.5}}>{new Date(s.updatedAt).toLocaleTimeString()}</div>
-                </motion.div>
-              ))}
-           </div>
-        </div>
-
-        <div className="brand-box" style={{borderTop:'1px solid var(--border)', borderBottom:'none', padding:'16px'}}>
-           <button onClick={() => { clearAuthSession(); router.replace("/login"); }} 
-                   style={{width:'100%', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', background:'transparent', border:'1px solid var(--border)', color:'var(--muted)', padding:'8px', borderRadius:'8px', fontSize:'12px'}}>
-              <LogOut size={14} /> SYSTEM LOGOUT
-           </button>
-        </div>
-      </aside>
-
-      {/* MAIN CHAT */}
-      <section className="card-container chat-main">
-        <header className="chat-header">
-          <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
-             <BrainCircuit size={20} color="var(--accent)" />
-             <h2 style={{fontSize:'1.3rem'}}>{activeSession?.title || "Active Reasoning"}</h2>
-          </div>
-          <div className="mono" style={{fontSize:'11px', display:'flex', gap:'20px', alignItems:'center'}}>
-             <span style={{color:'var(--muted)'}}>{status.toUpperCase()}</span>
-             <ThemeToggle theme={theme} setTheme={setTheme} />
-          </div>
-        </header>
-
-        <div className="message-list">
-          <AnimatePresence>
-          {activeSession?.messages.map((m, idx) => (
-            <motion.div 
-              key={m.id} 
-              initial={{opacity:0, y:10}}
-              animate={{opacity:1, y:0}}
-              className={`bubble ${m.role}`}
-            >
-              <div className="bubble-meta mono" style={{display:'flex', justifyContent:'space-between'}}>
-                 <span>{m.role === 'user' ? 'SIGNAL' : 'INFERENCE'}</span>
-                 <span>{new Date(m.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-              </div>
-              <div className="bubble-text">{m.text}</div>
-              {m.meta?.path && m.meta.path.length > 0 && (
-                <div className="mono" style={{fontSize:'9px', marginTop:'12px', padding:'6px 10px', background:'rgba(0,0,0,0.03)', borderRadius:'4px', color:'var(--muted)'}}>
-                  TRAVERSAL: {m.meta.path.join(' → ')}
-                </div>
-              )}
-            </motion.div>
-          ))}
-          </AnimatePresence>
-          {sending && (
-            <motion.div initial={{opacity:0}} animate={{opacity:1}} className="bubble assistant thinking">
-              <div className="bubble-meta mono">ACTIVATING SEMANTIC CLUSTERS...</div>
-              <div className="bubble-text">● ● ●</div>
-            </motion.div>
-          )}
-          <div id="scroll-anchor" />
-        </div>
-
-        <div className="composer">
-          <div style={{flex:1, position:'relative'}}>
-             <input 
-               value={draft}
-               onChange={e => setDraft(e.target.value)}
-               onKeyDown={e => e.key === 'Enter' && sendQuery()}
-               placeholder="Enter concept or query..."
-               style={{width:'100%', paddingRight:'40px'}}
-             />
-             <div className="mono" style={{position:'absolute', right:'12px', top:'50%', transform:'translateY(-50%)', fontSize:'9px', opacity:0.3}}>
-               ↵
-             </div>
-          </div>
-          <button onClick={sendQuery} disabled={sending}>
-             <Send size={18} />
+    <div className="chat-layout font-serif">
+      {/* LEFT RAIL */}
+      <motion.aside
+        initial={false}
+        animate={{ width: sidebarOpen ? 280 : 0, opacity: sidebarOpen ? 1 : 0 }}
+        className="card-container left-rail border-r border-stone-200 dark:border-stone-800"
+      >
+        <div className="p-6 flex items-center justify-between border-b border-stone-200 dark:border-stone-800">
+          <Logo theme={theme} className="w-8" />
+          <button onClick={() => setSidebarOpen(false)} className="text-stone-400 hover:text-stone-900 dark:hover:text-white">
+            <PanelLeftClose size={18} />
           </button>
         </div>
-      </section>
+
+        <div className="p-4 space-y-2 border-b border-stone-200 dark:border-stone-800">
+          <button
+            onClick={() => {
+              const fresh = createSession("New Protocol");
+              setSessions(p => upsertSession(p, fresh));
+              setActiveId(fresh.id);
+              router.push(`?chatId=${fresh.id}`);
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-stone-900 dark:bg-white text-white dark:text-stone-900 text-sm font-semibold shadow-sm hover:opacity-90"
+          >
+            <Plus size={18} /> New Session
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          <div className="px-3 py-2 text-[10px] font-mono text-stone-400 tracking-widest uppercase">Memory Clusters</div>
+          {sessions.map(s => (
+            <button
+              key={s.id}
+              onClick={() => { setActiveId(s.id); router.push(`?chatId=${s.id}`); }}
+              className={`w-full text-left px-4 py-3 rounded-lg transition-all flex items-center gap-3 group ${s.id === activeId ? 'bg-stone-100 dark:bg-stone-900 text-stone-900 dark:text-white shadow-sm' : 'text-stone-500 hover:bg-stone-50 dark:hover:bg-stone-900/50'}`}
+            >
+              <MessageSquare size={16} className={s.id === activeId ? 'text-stone-900 dark:text-white' : 'text-stone-300 group-hover:text-stone-400'} />
+              <div className="flex-1 truncate text-sm font-medium">{s.title}</div>
+            </button>
+          ))}
+        </div>
+
+        <div className="p-4 border-t border-stone-200 dark:border-stone-800 space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-2 text-stone-400">
+              <Zap size={14} className="text-amber-500" />
+              <span className="text-[10px] font-mono">{profile?.credit_balance ?? 0} Credits</span>
+            </div>
+            <div className="flex items-center gap-2 text-stone-400">
+              <ShieldCheck size={14} className="text-stone-400" />
+              <span className="text-[10px] font-mono">{profile?.tier}</span>
+            </div>
+          </div>
+          <button
+            onClick={() => { clearAuthSession(); router.replace("/login"); }}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-stone-200 dark:border-stone-800 text-xs font-mono text-stone-500 hover:bg-stone-50 dark:hover:bg-stone-900 transition-colors"
+          >
+            <LogOut size={14} /> Terminate
+          </button>
+        </div>
+      </motion.aside>
+
+      {/* MAIN CHAT */}
+      <main className="chat-main">
+        <header className="h-16 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between px-6 bg-white/80 dark:bg-stone-950/80 backdrop-blur-md sticky top-0 z-10">
+          <div className="flex items-center gap-4">
+            {!sidebarOpen && (
+              <button onClick={() => setSidebarOpen(true)} className="text-stone-400 hover:text-stone-900 dark:hover:text-white">
+                <PanelLeftOpen size={18} />
+              </button>
+            )}
+            <h2 className="text-lg font-display flex items-center gap-2">
+              <BrainCircuit size={20} className="text-red-600" />
+              {activeSession?.title || "Active Reasoning"}
+            </h2>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-stone-100 dark:bg-stone-900 border border-stone-200 dark:border-stone-800">
+               <div className={`w-1.5 h-1.5 rounded-full ${status === 'Error' ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`} />
+               <span className="text-[10px] font-mono text-stone-500">{status}</span>
+            </div>
+            <ThemeToggle theme={theme} setTheme={setTheme} />
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto px-6 py-8 space-y-8 max-w-4xl mx-auto w-full">
+          <AnimatePresence mode="popLayout">
+            {activeSession?.messages.map((m) => (
+              <motion.div
+                key={m.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}
+              >
+                <div className={`bubble ${m.role}`}>
+                  <div className="bubble-meta">
+                    <span>{m.role === 'user' ? 'Signal' : 'Inference'}</span>
+                    <span>{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                  <div className={`text-base leading-relaxed ${m.role === 'user' ? 'font-serif' : 'font-serif'}`}>
+                    {m.text}
+                  </div>
+                  {m.meta?.path && m.meta.path.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-stone-100 dark:border-stone-800 flex items-center gap-3">
+                      <Network size={12} className="text-red-600" />
+                      <div className="text-[10px] font-mono text-stone-400 truncate">
+                        {m.meta.path.join(' → ')}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+          {sending && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-start">
+               <div className="bubble assistant">
+                  <div className="bubble-meta">Resolving Semantic Paths...</div>
+                  <div className="flex gap-1 py-2">
+                    <div className="thinking-dot" style={{ animationDelay: '0ms' }} />
+                    <div className="thinking-dot" style={{ animationDelay: '150ms' }} />
+                    <div className="thinking-dot" style={{ animationDelay: '300ms' }} />
+                  </div>
+               </div>
+            </motion.div>
+          )}
+          <div id="scroll-anchor" className="h-4" />
+        </div>
+
+        <footer className="p-6 bg-white dark:bg-stone-950 border-t border-stone-200 dark:border-stone-800 sticky bottom-0">
+          <div className="max-w-4xl mx-auto relative group">
+            <input
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && sendQuery()}
+              placeholder="Query the Collective Intelligence..."
+              className="w-full pr-16 shadow-lg group-hover:ring-1 ring-stone-200 dark:ring-stone-800"
+            />
+            <button
+              onClick={sendQuery}
+              disabled={sending || !draft.trim()}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md bg-stone-900 dark:bg-white text-white dark:text-stone-900 hover:opacity-90 disabled:bg-stone-100 dark:disabled:bg-stone-900 disabled:text-stone-400"
+            >
+              <Send size={18} />
+            </button>
+          </div>
+          <div className="max-w-4xl mx-auto mt-4 flex justify-between px-2">
+             <div className="text-[9px] font-mono text-stone-400 flex items-center gap-4">
+                <span className="flex items-center gap-1"><Activity size={10} /> Latency: ~140ms</span>
+                <span className="flex items-center gap-1"><Compass size={10} /> Mode: Relational</span>
+             </div>
+             <div className="text-[9px] font-mono text-stone-400 uppercase tracking-widest">Paragi AGI Protocol v11</div>
+          </div>
+        </footer>
+      </main>
 
       {/* RIGHT RAIL */}
-      <aside className="card-container right-rail">
-        <header className="panel-header" style={{display:'flex', alignItems:'center', gap:'8px'}}>
-           <Network size={14} /> SEMANTIC ACTIVATION
+      <aside className="card-container right-rail border-l border-stone-200 dark:border-stone-800">
+        <header className="h-16 flex items-center gap-3 px-6 border-b border-stone-200 dark:border-stone-800">
+          <Network size={16} className="text-red-600" />
+          <h3 className="mono text-[10px]">Cognitive Visualization</h3>
         </header>
-        <GraphPanel userId={auth?.userId} refreshSignal={refreshSignal} />
-        
-        <div style={{padding:'24px', borderTop:'1px solid var(--border)'}} className="mono">
-           <h4 style={{fontSize:'10px', color:'var(--muted)', marginBottom:'16px', letterSpacing:'0.1em'}}>KNOWLEDGE IMPACT</h4>
-           <div style={{display:'grid', gap:'12px'}}>
-              <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px'}}>
-                 <span>Main Nodes:</span>
-                 <strong style={{color:'var(--accent)'}}>{profile?.main_nodes_contributed ?? 0}</strong>
+        <div className="flex-1 overflow-hidden relative">
+          <GraphPanel userId={auth?.userId} refreshSignal={refreshSignal} />
+        </div>
+        <div className="p-8 space-y-8 bg-stone-50/50 dark:bg-stone-900/20">
+          <div>
+            <h4 className="mono text-[9px] text-stone-400 mb-4">Intelligence Impact</h4>
+            <div className="space-y-4">
+              <div className="flex justify-between items-end">
+                <span className="text-xs font-medium text-stone-500">Global Contributions</span>
+                <span className="text-xl font-display text-red-600">{profile?.main_nodes_contributed ?? 0}</span>
               </div>
-              <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px'}}>
-                 <span>Domain Depth:</span>
-                 <strong>{Object.keys(profile?.domain_nodes_contributed ?? {}).length} Fields</strong>
+              <div className="w-full bg-stone-200 dark:bg-stone-800 h-1 rounded-full overflow-hidden">
+                <div className="bg-red-600 h-full w-[15%]" />
               </div>
-              <div style={{display:'flex', justifyContent:'space-between', fontSize:'12px', marginTop:'8px', paddingTop:'8px', borderTop:'1px dashed var(--border)'}}>
-                 <span>CORE HEALTH:</span>
-                 <span style={{color:'var(--ok)'}}>{meta.health?.toUpperCase()}</span>
-              </div>
-           </div>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-stone-200 dark:border-stone-800">
+             <h4 className="mono text-[9px] text-stone-400 mb-4">Core Telemetry</h4>
+             <div className="space-y-3">
+                <div className="flex justify-between text-[11px]">
+                   <span className="text-stone-500">Storage</span>
+                   <span className="font-mono text-stone-900 dark:text-stone-300">{meta.health}</span>
+                </div>
+                <div className="flex justify-between text-[11px]">
+                   <span className="text-stone-500">LLM Brain</span>
+                   <span className="font-mono text-stone-900 dark:text-stone-300 truncate max-w-[120px]">{meta.llm}</span>
+                </div>
+             </div>
+          </div>
         </div>
       </aside>
     </div>

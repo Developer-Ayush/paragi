@@ -69,7 +69,8 @@ class GraphBuilder:
         target_label: str, 
         edge_type: EdgeType,
         weight: float = 0.2,
-        confidence: float = 1.0
+        confidence: float = 1.0,
+        vector: Optional[List[float]] = None
     ) -> None:
         """Helper for manual or autonomous edge creation."""
         from core.semantic_ir import IRRelation
@@ -77,7 +78,8 @@ class GraphBuilder:
             source=source_label,
             target=target_label,
             relation=edge_type,
-            confidence=confidence
+            confidence=confidence,
+            attributes={"vector": vector} if vector else {}
         )
         self._add_semantic_relation(rel)
 
@@ -95,6 +97,8 @@ class GraphBuilder:
             # Reinforce if it's the same type
             if existing_edge.edge_type == rel.relation:
                 existing_edge.reinforce()
+                if "vector" in rel.attributes and rel.attributes["vector"]:
+                    existing_edge.vector = rel.attributes["vector"]
                 self.graph.add_edge(existing_edge) # Update store
         else:
             # Create new edge
@@ -104,6 +108,7 @@ class GraphBuilder:
                 edge_type=rel.relation,
                 weight=0.2, # Initial weight
                 confidence=rel.confidence,
+                vector=rel.attributes.get("vector"),
                 metadata=rel.attributes
             )
             self.graph.add_edge(new_edge)
